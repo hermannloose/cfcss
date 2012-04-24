@@ -1722,13 +1722,13 @@ ac_config_commands="$ac_config_commands Makefile"
 ac_config_commands="$ac_config_commands lib/Makefile"
 
 
-ac_config_commands="$ac_config_commands lib/sample/Makefile"
+ac_config_commands="$ac_config_commands lib/CFCSS/Makefile"
 
 
 ac_config_commands="$ac_config_commands tools/Makefile"
 
 
-ac_config_commands="$ac_config_commands tools/sample/Makefile"
+ac_config_commands="$ac_config_commands tools/CFCSS/Makefile"
 
 
 
@@ -2459,9 +2459,9 @@ do
     "Makefile.common") CONFIG_FILES="$CONFIG_FILES Makefile.common" ;;
     "Makefile") CONFIG_COMMANDS="$CONFIG_COMMANDS Makefile" ;;
     "lib/Makefile") CONFIG_COMMANDS="$CONFIG_COMMANDS lib/Makefile" ;;
-    "lib/sample/Makefile") CONFIG_COMMANDS="$CONFIG_COMMANDS lib/sample/Makefile" ;;
+    "lib/CFCSS/Makefile") CONFIG_COMMANDS="$CONFIG_COMMANDS lib/CFCSS/Makefile" ;;
     "tools/Makefile") CONFIG_COMMANDS="$CONFIG_COMMANDS tools/Makefile" ;;
-    "tools/sample/Makefile") CONFIG_COMMANDS="$CONFIG_COMMANDS tools/sample/Makefile" ;;
+    "tools/CFCSS/Makefile") CONFIG_COMMANDS="$CONFIG_COMMANDS tools/CFCSS/Makefile" ;;
 
   *) as_fn_error $? "invalid argument: \`$ac_config_target'" "$LINENO" 5 ;;
   esac
@@ -2881,12 +2881,12 @@ $as_echo "$as_me: executing $ac_file commands" >&6;}
    ${SHELL} ${llvm_src}/autoconf/install-sh -m 0644 -c ${srcdir}/Makefile Makefile ;;
     "lib/Makefile":C) ${llvm_src}/autoconf/mkinstalldirs `dirname lib/Makefile`
    ${SHELL} ${llvm_src}/autoconf/install-sh -m 0644 -c ${srcdir}/lib/Makefile lib/Makefile ;;
-    "lib/sample/Makefile":C) ${llvm_src}/autoconf/mkinstalldirs `dirname lib/sample/Makefile`
-   ${SHELL} ${llvm_src}/autoconf/install-sh -m 0644 -c ${srcdir}/lib/sample/Makefile lib/sample/Makefile ;;
+    "lib/CFCSS/Makefile":C) ${llvm_src}/autoconf/mkinstalldirs `dirname lib/CFCSS/Makefile`
+   ${SHELL} ${llvm_src}/autoconf/install-sh -m 0644 -c ${srcdir}/lib/CFCSS/Makefile lib/CFCSS/Makefile ;;
     "tools/Makefile":C) ${llvm_src}/autoconf/mkinstalldirs `dirname tools/Makefile`
    ${SHELL} ${llvm_src}/autoconf/install-sh -m 0644 -c ${srcdir}/tools/Makefile tools/Makefile ;;
-    "tools/sample/Makefile":C) ${llvm_src}/autoconf/mkinstalldirs `dirname tools/sample/Makefile`
-   ${SHELL} ${llvm_src}/autoconf/install-sh -m 0644 -c ${srcdir}/tools/sample/Makefile tools/sample/Makefile ;;
+    "tools/CFCSS/Makefile":C) ${llvm_src}/autoconf/mkinstalldirs `dirname tools/CFCSS/Makefile`
+   ${SHELL} ${llvm_src}/autoconf/install-sh -m 0644 -c ${srcdir}/tools/CFCSS/Makefile tools/CFCSS/Makefile ;;
 
   esac
 done # for ac_tag
