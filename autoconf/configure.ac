@@ -1,11 +1,11 @@
 dnl **************************************************************************
 dnl * Initialize
 dnl **************************************************************************
-AC_INIT([[[SAMPLE]]],[[[x.xx]]],[bugs@yourdomain])
+AC_INIT([CFCSS for Fiasco],[0.01],[hermannloose@gmail.com])
 
 dnl Identify where LLVM source tree is
-LLVM_SRC_ROOT="../.."
-LLVM_OBJ_ROOT="../.."
+LLVM_SRC_ROOT=".."
+LLVM_OBJ_ROOT=".."
 
 dnl Find absolute paths to LLVM source and object trees
 LLVM_ABS_SRC_ROOT="`cd $srcdir ; cd $LLVM_SRC_ROOT ; pwd`"
@@ -29,9 +29,9 @@ dnl Configure project makefiles
 dnl List every Makefile that exists within your source tree
 AC_CONFIG_MAKEFILE(Makefile)
 AC_CONFIG_MAKEFILE(lib/Makefile)
-AC_CONFIG_MAKEFILE(lib/sample/Makefile)
+AC_CONFIG_MAKEFILE(lib/CFCSS/Makefile)
 AC_CONFIG_MAKEFILE(tools/Makefile)
-AC_CONFIG_MAKEFILE(tools/sample/Makefile)
+AC_CONFIG_MAKEFILE(tools/CFCSS/Makefile)
 
 dnl **************************************************************************
 dnl * Determine which system we are building on
