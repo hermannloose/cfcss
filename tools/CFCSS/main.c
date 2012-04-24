@@ -3,12 +3,7 @@
 
 #include <unistd.h>
 
-#include "sample.h"
+#include "CFCSS.h"
 
-int
-main (int argc, char ** argv)
-{
-  printf ("%d\n", compute_sample (5));
-  exit (0);
+int main(int argc, char **argv) {
 }
-

@@ -1,25 +1,18 @@
-/*
- * File: sample.c
+/**
+ * @author Hermann Loose <hermannloose@gmail.com>
  *
- * Description:
- *  This is a sample source file for a library.  It helps to demonstrate
- *  how to setup a project that uses the LLVM build system, header files,
- *  and libraries.
+ * TODO(hermannloose): Add description.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
+#define DEBUG_TYPE "cfcss"
 
-/* LLVM Header File
-#include "llvm/Support/DataTypes.h"
-*/
+#include "llvm/CallGraphSCCPass.h"
+#include "llvm/Pass.h"
 
 /* Header file global to this project */
-#include "sample.h"
+#include "CFCSS.h"
 
-int
-compute_sample (int a)
-{
-  return a;
+using namespace llvm;
+
+namespace {
 }
-
