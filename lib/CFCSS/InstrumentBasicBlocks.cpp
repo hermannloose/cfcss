@@ -34,6 +34,11 @@ namespace cfcss {
   bool InstrumentBasicBlocks::runOnFunction(Function &F) {
     IntegerType *intType = Type::getInt64Ty(getGlobalContext());
 
+    Instruction *insertAlloca = F.getEntryBlock().getFirstNonPHI();
+    AllocaInst *GSR = new AllocaInst(intType, "GSR", insertAlloca);
+    AllocaInst *D = new AllocaInst(intType, "D", insertAlloca);
+
+    /*
     GlobalVariable *GSR = new GlobalVariable(
         *F.getParent(),
         intType,
@@ -49,6 +54,7 @@ namespace cfcss {
         GlobalValue::PrivateLinkage,
         ConstantInt::get(intType, 0),
         Twine("D"));
+    */
 
     AssignBlockSignatures &ABS = getAnalysis<AssignBlockSignatures>();
 
@@ -84,7 +90,7 @@ namespace cfcss {
                 Instruction::Xor,
                 loadGSR,
                 signatureDiff,
-                Twine("NEWGSR"),
+                Twine("GSR"),
                 first);
 
             storeGSR = new StoreInst(
@@ -114,7 +120,7 @@ namespace cfcss {
               Instruction::Xor,
               signatureUpdate,
               loadD,
-              Twine("FANINCORRECTED"),
+              Twine("GSR"),
               storeGSR);
 
           StoreInst *storeCorrected = new StoreInst(correctForFanin, GSR);
