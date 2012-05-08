@@ -117,6 +117,8 @@ namespace cfcss {
               Twine("FANINCORRECTED"),
               storeGSR);
 
+          StoreInst *storeCorrected = new StoreInst(correctForFanin, GSR);
+          storeCorrected->insertAfter(storeGSR);
         }
       }
     }
