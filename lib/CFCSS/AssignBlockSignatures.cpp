@@ -9,16 +9,19 @@
 #include "AssignBlockSignatures.h"
 
 #include "llvm/ADT/APInt.h"
+#include "llvm/Constants.h"
 #include "llvm/DerivedTypes.h"
 #include "llvm/Function.h"
 #include "llvm/LLVMContext.h"
+#include "llvm/Support/CFG.h"
 
 namespace cfcss {
 
-  typedef std::pair<BasicBlock*, Constant*> SignatureEntry;
+  typedef std::pair<BasicBlock*, ConstantInt*> SignatureEntry;
+  typedef std::pair<BasicBlock*, bool> FaninEntry;
 
   AssignBlockSignatures::AssignBlockSignatures() :
-      FunctionPass(ID), blockSignatures() {
+      FunctionPass(ID), blockSignatures(), signatureUpdateSources(), blockFanin() {
 
     nextID = 0;
   }
@@ -29,18 +32,33 @@ namespace cfcss {
 
   bool AssignBlockSignatures::runOnFunction(Function &F) {
     for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i) {
-      blockSignatures.insert(SignatureEntry(i, Constant::getIntegerValue(
-          IntegerType::get(getGlobalContext(), 64),
-          APInt(64, nextID))));
+      blockSignatures.insert(SignatureEntry(i, ConstantInt::get(
+          Type::getInt64Ty(getGlobalContext()), nextID)));
 
       ++nextID;
+
+      int predecessors = 0;
+      for (pred_iterator pred_i = pred_begin(i), pred_e = pred_end(e);
+          pred_i != pred_e; ++pred_i) {
+
+        ++predecessors;
+        if (predecessors > 1) {
+          break;
+        }
+      }
+
+      blockFanin.insert(FaninEntry(i, (predecessors > 1)));
     }
 
     return false;
   }
 
-  Constant* AssignBlockSignatures::getSignature(BasicBlock &BB) {
-    return blockSignatures.lookup(&BB);
+  ConstantInt* AssignBlockSignatures::getSignature(BasicBlock * const BB) {
+    return blockSignatures.lookup(BB);
+  }
+
+  bool AssignBlockSignatures::isFaninNode(BasicBlock * const BB) {
+    return blockFanin.lookup(BB);
   }
 
   char AssignBlockSignatures::ID = 0;

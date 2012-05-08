@@ -6,13 +6,14 @@
 #pragma once
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/Constant.h"
+#include "llvm/Constants.h"
 #include "llvm/Pass.h"
 
 using namespace llvm;
 
 namespace cfcss {
-  typedef DenseMap<BasicBlock*, Constant*> SignatureMap;
+  typedef DenseMap<BasicBlock*, ConstantInt*> SignatureMap;
+  typedef DenseMap<BasicBlock*, bool> FaninMap;
 
   class AssignBlockSignatures : public FunctionPass {
     public:
@@ -23,10 +24,13 @@ namespace cfcss {
       virtual void getAnalysisUsage(AnalysisUsage &AU) const;
       virtual bool runOnFunction(Function &F);
 
-      Constant* getSignature(BasicBlock &BB);
+      ConstantInt* getSignature(BasicBlock * const BB);
+      bool isFaninNode(BasicBlock * const BB);
 
     private:
       SignatureMap blockSignatures;
+      SignatureMap signatureUpdateSources;
+      FaninMap blockFanin;
       unsigned long nextID;
   };
 
