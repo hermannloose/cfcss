@@ -53,8 +53,18 @@ namespace cfcss {
     return false;
   }
 
+  // FIXME(hermannloose): This is a dirty hack!
   ConstantInt* AssignBlockSignatures::getSignature(BasicBlock * const BB) {
-    return blockSignatures.lookup(BB);
+    ConstantInt *signature = blockSignatures.lookup(BB);
+    /*
+    if (!signature) {
+      signature = ConstantInt::get(Type::getInt64Ty(getGlobalContext()), nextID);
+      blockSignatures.insert(SignatureEntry(BB, signature));
+      ++nextID;
+    }
+    */
+
+    return signature;
   }
 
   bool AssignBlockSignatures::isFaninNode(BasicBlock * const BB) {
