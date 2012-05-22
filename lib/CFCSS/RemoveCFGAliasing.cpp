@@ -19,13 +19,16 @@
 namespace cfcss {
 
   STATISTIC(NumAliasingBlocks, "Number of aliasing basic blocks found");
+  STATISTIC(NumProxyBlocks, "Number of proxy blocks inserted");
 
   RemoveCFGAliasing::RemoveCFGAliasing() : FunctionPass(ID) {}
 
   bool RemoveCFGAliasing::runOnFunction(Function &F) {
     for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i) {
       BlockMap *aliasingBlocks = getAliasingBlocks(i);
-      NumAliasingBlocks += aliasingBlocks->size();
+      if (aliasingBlocks->size()) {
+        NumAliasingBlocks += aliasingBlocks->size() + 1;
+      }
 
       for (BlockMap::iterator via_i = aliasingBlocks->begin(), via_e = aliasingBlocks->end();
           via_i != via_e; ++via_i) {
@@ -52,14 +55,14 @@ namespace cfcss {
   }
 
   RemoveCFGAliasing::BlockMap* RemoveCFGAliasing::getAliasingBlocks(BasicBlock *BB) {
-    DEBUG(errs() << "Checking [" << BB->getName().str() << "] for aliasing.\n");
+    DEBUG(errs() << "Checking [" << BB->getName() << "] for aliasing.\n");
 
     BlockMap *aliasingBlocks = new BlockMap();
 
     // FIXME(hermannloose): Might make control-flow a bit nicer here.
     // The aliasing problem is limited to fanin nodes.
     if (!BB->hasNUsesOrMore(2)) {
-      DEBUG(errs() << "[" << BB->getName().str() << "] is not a fanin node, can't alias.\n");
+      DEBUG(errs() << "[" << BB->getName() << "] is not a fanin node, can't alias.\n");
 
       return aliasingBlocks;
     }
@@ -70,12 +73,12 @@ namespace cfcss {
     for (BlockSet::iterator i = predecessors->begin(), e = predecessors->end();
         i != e; ++i) {
 
-      DEBUG(errs() << " [" << (*i)->getName().str() << "]");
+      DEBUG(errs() << " [" << (*i)->getName() << "]");
     }
     DEBUG(errs() << "\n");
 
     for (pred_iterator i = pred_begin(BB), e = pred_end(BB); i != e; ++i) {
-      DEBUG(errs() << "Checking successors of [" << (*i)->getName().str() << "]\n");
+      DEBUG(errs() << "Checking successors of [" << (*i)->getName() << "].\n");
 
       BlockSet *aliasingSuccessors = new BlockSet();
 
@@ -86,15 +89,15 @@ namespace cfcss {
 
         // The aliasing problem is limited to fanin nodes.
         if (succ_i->hasNUsesOrMore(2)) {
-          DEBUG(errs() << "[" << succ_i->getName().str() << "] is a fanin node, checking for "
+          DEBUG(errs() << "[" << succ_i->getName() << "] is a fanin node, checking for "
               << "predecessor overlap.\n");
 
           for (pred_iterator pred_i = pred_begin(*succ_i), pred_e = pred_end(*succ_i);
               pred_i != pred_e; ++pred_i) {
 
             if (!predecessors->count(*pred_i)) {
-              DEBUG(errs() << "[" << (*pred_i)->getName().str() << "] is a predecessor of ["
-                  << (*succ_i)->getName().str() << "] but not [" << BB->getName().str() << "]\n");
+              DEBUG(errs() << "[" << (*pred_i)->getName() << "] is a predecessor of ["
+                  << (*succ_i)->getName() << "] but not of [" << BB->getName() << "].\n");
 
               aliasingSuccessors->insert(*succ_i);
               break;
