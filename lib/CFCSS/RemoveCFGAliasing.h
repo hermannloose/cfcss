@@ -27,6 +27,7 @@ namespace cfcss {
 
     private:
       BlockMap* getAliasingBlocks(BasicBlock *BB);
+      BasicBlock* insertProxyBlock(BasicBlock *source, BasicBlock *target);
   };
 
 }

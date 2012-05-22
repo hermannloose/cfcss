@@ -10,6 +10,8 @@
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Instructions.h"
+#include "llvm/LLVMContext.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -31,9 +33,11 @@ namespace cfcss {
         for (BlockSet::iterator alias_i = via_i->second->begin(), alias_e = via_i->second->end();
             alias_i != alias_e; ++alias_i) {
 
-          DEBUG(errs() << "[" << i->getName().str() << "]\n  ["
-              << (*alias_i)->getName().str() << "] via ["
-              << via_i->first->getName().str() << "]\n");
+          DEBUG(errs() << "[" << i->getName() << "]\n  [" << (*alias_i)->getName() << "] via ["
+              << via_i->first->getName() << "]\n");
+
+          insertProxyBlock(via_i->first, *alias_i);
+          ++NumProxyBlocks;
         }
       }
 
@@ -107,6 +111,43 @@ namespace cfcss {
     }
 
     return aliasingBlocks;
+  }
+
+  // FIXME(hermannloose): Assert that target is in fact a successor of source!
+  BasicBlock* RemoveCFGAliasing::insertProxyBlock(BasicBlock *source, BasicBlock *target) {
+    DEBUG(errs() << "Inserting proxy block between [" << source->getName()
+        << "] and [" << target->getName() << "].\n");
+
+    BasicBlock *proxyBlock = BasicBlock::Create(
+        getGlobalContext(),
+        "proxyBlock",
+        source->getParent());
+
+    BranchInst::Create(target, proxyBlock);
+    // We can't use replaceSuccessorsPhiUsesWith(), as we only want to change
+    // target and not all successors at once.
+    for (BasicBlock::iterator i = target->begin(), e = target->end(); i != e; ++i) {
+      if (PHINode *phiNode = dyn_cast<PHINode>(i)) {
+        for (unsigned int idx = 0; idx < phiNode->getNumIncomingValues(); ++idx) {
+          if (phiNode->getIncomingBlock(idx) == source) {
+            phiNode->setIncomingBlock(idx, proxyBlock);
+          }
+        }
+      }
+    }
+
+    TerminatorInst *terminator = source->getTerminator();
+
+    if (BranchInst *branchInst = dyn_cast<BranchInst>(terminator)) {
+      for (unsigned int idx = 0; idx < branchInst->getNumSuccessors(); ++idx) {
+        if (branchInst->getSuccessor(idx) == target) {
+          branchInst->setSuccessor(idx, proxyBlock);
+          break;
+        }
+      }
+    }
+
+    return proxyBlock;
   }
 
   char RemoveCFGAliasing::ID = 0;
