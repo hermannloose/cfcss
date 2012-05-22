@@ -140,13 +140,9 @@ namespace cfcss {
     }
 
     TerminatorInst *terminator = source->getTerminator();
-
-    if (BranchInst *branchInst = dyn_cast<BranchInst>(terminator)) {
-      for (unsigned int idx = 0; idx < branchInst->getNumSuccessors(); ++idx) {
-        if (branchInst->getSuccessor(idx) == target) {
-          branchInst->setSuccessor(idx, proxyBlock);
-          break;
-        }
+    for (unsigned int idx = 0; idx < terminator->getNumSuccessors(); ++idx) {
+      if (terminator->getSuccessor(idx) == target) {
+        terminator->setSuccessor(idx, proxyBlock);
       }
     }
 
