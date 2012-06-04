@@ -37,11 +37,12 @@ namespace cfcss {
 
   bool InstrumentBasicBlocks::runOnFunction(Function &F) {
     IntegerType *intType = Type::getInt64Ty(getGlobalContext());
+    AssignBlockSignatures &ABS = getAnalysis<AssignBlockSignatures>();
 
     Instruction *insertAlloca = F.getEntryBlock().getFirstNonPHI();
     AllocaInst *GSR = new AllocaInst(intType, "GSR", insertAlloca);
     AllocaInst *D = new AllocaInst(intType, "D", insertAlloca);
-    new StoreInst(ConstantInt::get(intType, 0), GSR, insertAlloca);
+    new StoreInst(getSignature(&(F.getEntryBlock()), ABS), GSR, insertAlloca);
     new StoreInst(ConstantInt::get(intType, 0), D, insertAlloca);
 
     BasicBlock *errorHandlingBlock = BasicBlock::Create(
@@ -58,8 +59,6 @@ namespace cfcss {
 
     splitBlocks.insert(SignatureEntry(errorHandlingBlock,
         ConstantInt::get(intType, 0)));
-
-    AssignBlockSignatures &ABS = getAnalysis<AssignBlockSignatures>();
 
     for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i) {
       BasicBlock &BB = *i;

@@ -14,6 +14,8 @@
 #include "llvm/Function.h"
 #include "llvm/LLVMContext.h"
 #include "llvm/Support/CFG.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/raw_ostream.h"
 
 namespace cfcss {
 
@@ -35,6 +37,7 @@ namespace cfcss {
       blockSignatures.insert(SignatureEntry(i, ConstantInt::get(
           Type::getInt64Ty(getGlobalContext()), nextID)));
 
+      DEBUG(errs() << "[" << i->getName() << "] has signature " << nextID << ".\n");
       ++nextID;
 
       int predecessors = 0;
