@@ -31,6 +31,18 @@ namespace cfcss {
   InstrumentBasicBlocks::InstrumentBasicBlocks() : FunctionPass(ID),
       splitBlocks() {}
 
+  bool InstrumentBasicBlocks::doInitialization(Module &M) {
+    interFunctionGSR = new GlobalVariable(
+        M,
+        Type::getInt64Ty(getGlobalContext()),
+        false, /* isConstant */
+        GlobalValue::PrivateLinkage,
+        ConstantInt::get(Type::getInt64Ty(getGlobalContext()), 0),
+        "interFunctionGSR");
+
+    return false;
+  }
+
   void InstrumentBasicBlocks::getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<AssignBlockSignatures>();
   }
@@ -42,9 +54,11 @@ namespace cfcss {
     Instruction *insertAlloca = F.getEntryBlock().getFirstNonPHI();
     AllocaInst *GSR = new AllocaInst(intType, "GSR", insertAlloca);
     AllocaInst *D = new AllocaInst(intType, "D", insertAlloca);
-    new StoreInst(getSignature(&(F.getEntryBlock()), ABS), GSR, insertAlloca);
+    LoadInst *loadInterFunctionGSR = new LoadInst(interFunctionGSR, "GSR", insertAlloca);
+    new StoreInst(loadInterFunctionGSR, GSR, insertAlloca);
     new StoreInst(ConstantInt::get(intType, 0), D, insertAlloca);
 
+    // Insert error handling basic block once per function.
     BasicBlock *errorHandlingBlock = BasicBlock::Create(
         getGlobalContext(),
         "handleSignatureFault",

@@ -7,6 +7,7 @@
 
 #include "AssignBlockSignatures.h"
 
+#include "llvm/Module.h"
 #include "llvm/Pass.h"
 
 using namespace llvm;
@@ -22,6 +23,7 @@ namespace cfcss {
 
       InstrumentBasicBlocks();
 
+      virtual bool doInitialization(Module &M);
       virtual void getAnalysisUsage(AnalysisUsage &AU) const;
       virtual bool runOnFunction(Function &F);
 
@@ -30,6 +32,8 @@ namespace cfcss {
 
       ConstantInt* getSignature(BasicBlock * const BB,
           AssignBlockSignatures &ABS);
+
+      GlobalVariable *interFunctionGSR;
   };
 
 }
