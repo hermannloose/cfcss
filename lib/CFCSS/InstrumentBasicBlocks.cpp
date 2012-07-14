@@ -29,7 +29,7 @@ namespace cfcss {
   typedef std::pair<BasicBlock*, ConstantInt*> SignatureEntry;
 
   InstrumentBasicBlocks::InstrumentBasicBlocks() : FunctionPass(ID),
-      splitBlocks() {}
+      ignoreBlocks() {}
 
   bool InstrumentBasicBlocks::doInitialization(Module &M) {
     interFunctionGSR = new GlobalVariable(
@@ -45,20 +45,133 @@ namespace cfcss {
 
   void InstrumentBasicBlocks::getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequired<AssignBlockSignatures>();
+    AU.addPreserved<AssignBlockSignatures>();
   }
 
   bool InstrumentBasicBlocks::runOnFunction(Function &F) {
     IntegerType *intType = Type::getInt64Ty(getGlobalContext());
     AssignBlockSignatures &ABS = getAnalysis<AssignBlockSignatures>();
 
-    Instruction *insertAlloca = F.getEntryBlock().getFirstNonPHI();
-    AllocaInst *GSR = new AllocaInst(intType, "GSR", insertAlloca);
-    AllocaInst *D = new AllocaInst(intType, "D", insertAlloca);
+    instrumentEntryBlock(F.getEntryBlock());
+    BasicBlock *errorHandlingBlock = createErrorHandlingBlock(F);
+
+    for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i) {
+      if (ignoreBlocks.lookup(i)) {
+        // Ignore the remainders of previously split blocks, as well as the
+        // entry block, which is handled separately.
+        continue;
+      }
+
+      BasicBlock &BB = *i;
+      BasicBlock *authPred = ABS.getAuthoritativePredecessor(&BB);
+
+      ConstantInt* signature = ABS.getSignature(&BB);
+      ConstantInt* pred_signature = ABS.getSignature(authPred);
+      ConstantInt *signatureDiff = ConstantInt::get(intType,
+          APIntOps::Xor(signature->getValue(), pred_signature->getValue()).getLimitedValue());
+
+      if (Instruction *first = BB.getFirstNonPHI()) {
+        LoadInst *loadGSR = new LoadInst(
+            GSR,
+            "GSR",
+            first);
+
+        BinaryOperator *signatureUpdate = BinaryOperator::Create(
+            Instruction::Xor,
+            loadGSR,
+            signatureDiff,
+            Twine("GSR"),
+            first);
+
+        if (ABS.isFaninNode(&BB)) {
+          LoadInst *loadD = new LoadInst(
+              D,
+              "D",
+              first);
+
+          signatureUpdate = BinaryOperator::Create(
+              Instruction::Xor,
+              signatureUpdate,
+              loadD,
+              Twine("GSR"),
+              first);
+        }
+
+        StoreInst *storeGSR = new StoreInst(
+            signatureUpdate,
+            GSR,
+            first);
+
+        ICmpInst *compareSignatures = new ICmpInst(
+            first,
+            CmpInst::ICMP_EQ,
+            signatureUpdate,
+            signature,
+            "SIGEQ");
+
+
+        // We branch after the comparison, so we split the block there.
+        BasicBlock::iterator nextInst(compareSignatures);
+        ++nextInst;
+
+        BasicBlock *oldTerminatorBlock = SplitBlock(&BB, nextInst, this);
+        ignoreBlocks.insert(SignatureEntry(oldTerminatorBlock, signature));
+        BB.getTerminator()->eraseFromParent();
+
+        BranchInst *errorHandling = BranchInst::Create(
+            oldTerminatorBlock,
+            errorHandlingBlock,
+            compareSignatures,
+            &BB);
+      }
+
+      // Store signature adjustment in register D if there is a successor that
+      // is a fanin node.
+      if (ABS.hasFaninSuccessor(&BB)) {
+        // If this is actually our block, we do want to store 0 in D, so
+        // there's no special treatment here.
+        BasicBlock *authSibling = ABS.getAuthoritativeSibling(&BB);
+
+        ConstantInt* siblingSignature = ABS.getSignature(authSibling);
+        ConstantInt *signatureAdjustment = ConstantInt::get(intType,
+          APIntOps::Xor(signature->getValue(), siblingSignature->getValue()).getLimitedValue());
+
+        new StoreInst(signatureAdjustment, D, BB.getTerminator());
+      }
+
+      DEBUG(BB.dump());
+    }
+
+    DEBUG(errs() << "Run on function " << F.getName().str() << " complete.\n");
+
+    return true;
+  }
+
+
+  void InstrumentBasicBlocks::instrumentEntryBlock(BasicBlock &entryBlock) {
+    IntegerType *intType = Type::getInt64Ty(getGlobalContext());
+    Instruction *insertAlloca = entryBlock.getFirstNonPHI();
+
+    GSR = new AllocaInst(intType, "GSR", insertAlloca);
+    D = new AllocaInst(intType, "D", insertAlloca);
+
     LoadInst *loadInterFunctionGSR = new LoadInst(interFunctionGSR, "GSR", insertAlloca);
     new StoreInst(loadInterFunctionGSR, GSR, insertAlloca);
     new StoreInst(ConstantInt::get(intType, 0), D, insertAlloca);
 
-    // Insert error handling basic block once per function.
+    // FIXME(hermannloose): Adapt instrumentation with checking code.
+    ignoreBlocks.insert(SignatureEntry(&entryBlock, ConstantInt::get(intType, 0)));
+  }
+
+
+  // FIXME(hermannloose): How to access ABS?
+  void InstrumentBasicBlocks::instrumentBlock(BasicBlock &BB, Instruction *insertBefore) {
+    // TODO(hermannloose): Pull lots of code from runOnFunction() in here.
+  }
+
+
+  BasicBlock* InstrumentBasicBlocks::createErrorHandlingBlock(Function &F) {
+    IntegerType *intType = Type::getInt64Ty(getGlobalContext());
     BasicBlock *errorHandlingBlock = BasicBlock::Create(
         getGlobalContext(),
         "handleSignatureFault",
@@ -71,129 +184,22 @@ namespace cfcss {
     CallInst::Create(ud2, ArrayRef<Value*>(), "", errorHandlingBlock);
     new UnreachableInst(getGlobalContext(), errorHandlingBlock);
 
-    splitBlocks.insert(SignatureEntry(errorHandlingBlock,
+    ignoreBlocks.insert(SignatureEntry(errorHandlingBlock,
         ConstantInt::get(intType, 0)));
 
-    for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i) {
-      BasicBlock &BB = *i;
-
-      ConstantInt* signature = getSignature(&BB, ABS);
-
-      BinaryOperator *signatureUpdate = NULL;
-      StoreInst *storeGSR = NULL;
-      BinaryOperator *correctForFanin = NULL;
-
-      for (pred_iterator pred_i = pred_begin(&BB), pred_e = pred_end(&BB);
-          pred_i != pred_e; ++pred_i) {
-
-        BasicBlock * const predecessor = *pred_i;
-
-        // FIXME(hermannloose): Verify that these are later merged with other
-        // blocks or otherwise handled nicely.
-        if (splitBlocks.lookup(&BB)) { continue; }
-
-        ConstantInt* pred_signature = getSignature(predecessor, ABS);
-
-        if (pred_i == pred_begin(&BB)) {
-          // We instrument the current block with instructions to update the
-          // GSR and compare it against the expected signature.
-          ConstantInt *signatureDiff = ConstantInt::get(intType,
-              APIntOps::Xor(signature->getValue(), pred_signature->getValue()).getLimitedValue());
-
-          if (Instruction *first = BB.getFirstNonPHI()) {
-            LoadInst *loadGSR = new LoadInst(
-                GSR,
-                "GSR",
-                first);
-
-            signatureUpdate = BinaryOperator::Create(
-                Instruction::Xor,
-                loadGSR,
-                signatureDiff,
-                Twine("GSR"),
-                first);
-
-            storeGSR = new StoreInst(
-                signatureUpdate,
-                GSR,
-                first);
-          }
-        } else {
-          // We instrument the predecessor to set the value D and the current
-          // block to include this value in updating the GSR.
-          ConstantInt *authoritativeSignature = getSignature(*pred_begin(&BB), ABS);
-          ConstantInt *signatureDiff = ConstantInt::get(intType,
-              APIntOps::Xor(authoritativeSignature->getValue(),
-                  pred_signature->getValue()).getLimitedValue());
-
-          new StoreInst(
-              ConstantInt::get(intType, 0),
-              D,
-              (*pred_begin(&BB))->getTerminator());
-
-          StoreInst *storeD = new StoreInst(
-              signatureDiff,
-              D,
-              predecessor->getTerminator());
-
-          LoadInst *loadD = new LoadInst(
-              D,
-              "D",
-              storeGSR);
-
-          correctForFanin = BinaryOperator::Create(
-              Instruction::Xor,
-              signatureUpdate,
-              loadD,
-              Twine("GSR"),
-              storeGSR);
-
-          StoreInst *storeCorrected = new StoreInst(correctForFanin, GSR);
-          storeCorrected->insertAfter(storeGSR);
-          storeGSR = storeCorrected;
-        }
-      }
-
-      // FIXME(hermannloose): False for the entry block. Handle cleaner.
-      if (storeGSR) {
-        LoadInst *loadGSR = new LoadInst(GSR, "GSR");
-        loadGSR->insertAfter(storeGSR);
-
-        ICmpInst *compareSignatures = new ICmpInst(
-            CmpInst::ICMP_EQ,
-            loadGSR,
-            signature,
-            "SIGEQ");
-
-        compareSignatures->insertAfter(loadGSR);
-
-        BasicBlock::iterator nextInst(compareSignatures);
-        ++nextInst;
-        BasicBlock *oldTerminatorBlock = SplitBlock(&BB, nextInst, this);
-        splitBlocks.insert(SignatureEntry(oldTerminatorBlock, signature));
-        BB.getTerminator()->eraseFromParent();
-
-        BranchInst *errorHandling = BranchInst::Create(
-            oldTerminatorBlock,
-            errorHandlingBlock,
-            compareSignatures,
-            &BB);
-      }
-
-      DEBUG(BB.dump());
-    }
-
-    DEBUG(errs() << "Run on function " << F.getName().str() << " complete.\n");
-
-    return true;
+    return errorHandlingBlock;
   }
 
+
+  /**
+   *
+   */
   ConstantInt* InstrumentBasicBlocks::getSignature(BasicBlock * const BB,
       AssignBlockSignatures &ABS) {
 
     ConstantInt *signature = ABS.getSignature(BB);
     if (!signature) {
-      signature = splitBlocks.lookup(BB);
+      signature = ignoreBlocks.lookup(BB);
     }
 
     assert(signature && "We should have a valid signature at this point!");

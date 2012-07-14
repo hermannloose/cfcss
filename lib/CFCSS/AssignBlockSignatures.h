@@ -13,6 +13,7 @@ using namespace llvm;
 
 namespace cfcss {
   typedef DenseMap<BasicBlock*, ConstantInt*> SignatureMap;
+  typedef DenseMap<BasicBlock*, BasicBlock*> BlockMap;
   typedef DenseMap<BasicBlock*, bool> FaninMap;
 
   class AssignBlockSignatures : public FunctionPass {
@@ -26,11 +27,17 @@ namespace cfcss {
 
       ConstantInt* getSignature(BasicBlock * const BB);
       bool isFaninNode(BasicBlock * const BB);
+      bool hasFaninSuccessor(BasicBlock * const BB);
+
+      BasicBlock* getAuthoritativePredecessor(BasicBlock * const BB);
+      BasicBlock* getAuthoritativeSibling(BasicBlock * const BB);
 
     private:
       SignatureMap blockSignatures;
       SignatureMap signatureUpdateSources;
+      BlockMap adjustFor;
       FaninMap blockFanin;
+      FaninMap faninSuccessors;
       unsigned long nextID;
   };
 

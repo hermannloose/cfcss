@@ -7,6 +7,7 @@
 #define DEBUG_TYPE "cfcss"
 
 #include "AssignBlockSignatures.h"
+#include "RemoveCFGAliasing.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/Constants.h"
@@ -21,16 +22,21 @@ namespace cfcss {
 
   typedef std::pair<BasicBlock*, ConstantInt*> SignatureEntry;
   typedef std::pair<BasicBlock*, bool> FaninEntry;
+  typedef std::pair<BasicBlock*, BasicBlock*> BlockEntry;
 
   AssignBlockSignatures::AssignBlockSignatures() :
-      FunctionPass(ID), blockSignatures(), signatureUpdateSources(), blockFanin() {
+      FunctionPass(ID), blockSignatures(), signatureUpdateSources(),
+      adjustFor(), blockFanin() {
 
     nextID = 0;
   }
 
+
   void AssignBlockSignatures::getAnalysisUsage(AnalysisUsage &AU) const {
     AU.setPreservesAll();
+    AU.addRequired<RemoveCFGAliasing>();
   }
+
 
   bool AssignBlockSignatures::runOnFunction(Function &F) {
     for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i) {
@@ -41,13 +47,27 @@ namespace cfcss {
       ++nextID;
 
       int predecessors = 0;
+      BasicBlock *authoritativePredecessor = NULL;
       for (pred_iterator pred_i = pred_begin(i), pred_e = pred_end(e);
           pred_i != pred_e; ++pred_i) {
 
-        ++predecessors;
-        if (predecessors > 1) {
-          break;
+        /**
+         * The authoritative predecessor is determined once per fanin node,
+         * for the set of its predecessors. The dealiasing pass required by
+         * this pass ensures that multiple fanin nodes share none or all of
+         * their predecessors.
+         */
+        if (!(adjustFor.lookup(*pred_i))) {
+          if (!authoritativePredecessor) {
+            authoritativePredecessor = *pred_i;
+          } else {
+            // Keep this for convenient lookup later on.
+            faninSuccessors.insert(FaninEntry(*pred_i, true));
+          }
+          adjustFor.insert(BlockEntry(*pred_i, authoritativePredecessor));
         }
+
+        ++predecessors;
       }
 
       blockFanin.insert(FaninEntry(i, (predecessors > 1)));
@@ -56,23 +76,31 @@ namespace cfcss {
     return false;
   }
 
-  // FIXME(hermannloose): This is a dirty hack!
-  ConstantInt* AssignBlockSignatures::getSignature(BasicBlock * const BB) {
-    ConstantInt *signature = blockSignatures.lookup(BB);
-    /*
-    if (!signature) {
-      signature = ConstantInt::get(Type::getInt64Ty(getGlobalContext()), nextID);
-      blockSignatures.insert(SignatureEntry(BB, signature));
-      ++nextID;
-    }
-    */
 
-    return signature;
+  ConstantInt* AssignBlockSignatures::getSignature(BasicBlock * const BB) {
+    return blockSignatures.lookup(BB);
   }
+
+
+  BasicBlock* AssignBlockSignatures::getAuthoritativePredecessor(BasicBlock * const BB) {
+    return adjustFor.lookup(*pred_begin(BB));
+  }
+
+
+  BasicBlock* AssignBlockSignatures::getAuthoritativeSibling(BasicBlock * const BB) {
+    return adjustFor.lookup(BB);
+  }
+
 
   bool AssignBlockSignatures::isFaninNode(BasicBlock * const BB) {
     return blockFanin.lookup(BB);
   }
+
+
+  bool AssignBlockSignatures::hasFaninSuccessor(BasicBlock * const BB) {
+    return faninSuccessors.lookup(BB);
+  }
+
 
   char AssignBlockSignatures::ID = 0;
 }

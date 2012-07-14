@@ -7,6 +7,7 @@
 
 #include "AssignBlockSignatures.h"
 
+#include "llvm/Instructions.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
 
@@ -28,7 +29,14 @@ namespace cfcss {
       virtual bool runOnFunction(Function &F);
 
     private:
-      SignatureMap splitBlocks;
+      AllocaInst *GSR;
+      AllocaInst *D;
+
+      SignatureMap ignoreBlocks;
+
+      void instrumentEntryBlock(BasicBlock &entryBlock);
+      void instrumentBlock(BasicBlock &BB, Instruction *insertBefore);
+      BasicBlock* createErrorHandlingBlock(Function &F);
 
       ConstantInt* getSignature(BasicBlock * const BB,
           AssignBlockSignatures &ABS);
