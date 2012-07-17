@@ -26,8 +26,6 @@
 using namespace llvm;
 
 namespace cfcss {
-  typedef std::pair<BasicBlock*, ConstantInt*> SignatureEntry;
-
   InstrumentBasicBlocks::InstrumentBasicBlocks() : FunctionPass(ID),
       ignoreBlocks() {}
 
@@ -49,94 +47,27 @@ namespace cfcss {
   }
 
   bool InstrumentBasicBlocks::runOnFunction(Function &F) {
-    IntegerType *intType = Type::getInt64Ty(getGlobalContext());
-    AssignBlockSignatures &ABS = getAnalysis<AssignBlockSignatures>();
+    ABS = &getAnalysis<AssignBlockSignatures>();
 
     instrumentEntryBlock(F.getEntryBlock());
     BasicBlock *errorHandlingBlock = createErrorHandlingBlock(F);
 
     for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i) {
-      if (ignoreBlocks.lookup(i)) {
+      if (ignoreBlocks.count(i)) {
+        DEBUG(errs() << "Ignoring [" << i->getName() << "].\n");
         // Ignore the remainders of previously split blocks, as well as the
         // entry block, which is handled separately.
         continue;
       }
 
       BasicBlock &BB = *i;
-      BasicBlock *authPred = ABS.getAuthoritativePredecessor(&BB);
+      Instruction *insertionPoint = BB.getFirstNonPHI();
 
-      ConstantInt* signature = ABS.getSignature(&BB);
-      ConstantInt* pred_signature = ABS.getSignature(authPred);
-      ConstantInt *signatureDiff = ConstantInt::get(intType,
-          APIntOps::Xor(signature->getValue(), pred_signature->getValue()).getLimitedValue());
+      instrumentBlock(BB, errorHandlingBlock, insertionPoint);
 
-      if (Instruction *first = BB.getFirstNonPHI()) {
-        LoadInst *loadGSR = new LoadInst(
-            GSR,
-            "GSR",
-            first);
-
-        BinaryOperator *signatureUpdate = BinaryOperator::Create(
-            Instruction::Xor,
-            loadGSR,
-            signatureDiff,
-            Twine("GSR"),
-            first);
-
-        if (ABS.isFaninNode(&BB)) {
-          LoadInst *loadD = new LoadInst(
-              D,
-              "D",
-              first);
-
-          signatureUpdate = BinaryOperator::Create(
-              Instruction::Xor,
-              signatureUpdate,
-              loadD,
-              Twine("GSR"),
-              first);
-        }
-
-        StoreInst *storeGSR = new StoreInst(
-            signatureUpdate,
-            GSR,
-            first);
-
-        ICmpInst *compareSignatures = new ICmpInst(
-            first,
-            CmpInst::ICMP_EQ,
-            signatureUpdate,
-            signature,
-            "SIGEQ");
-
-
-        // We branch after the comparison, so we split the block there.
-        BasicBlock::iterator nextInst(compareSignatures);
-        ++nextInst;
-
-        BasicBlock *oldTerminatorBlock = SplitBlock(&BB, nextInst, this);
-        ignoreBlocks.insert(SignatureEntry(oldTerminatorBlock, signature));
-        BB.getTerminator()->eraseFromParent();
-
-        BranchInst *errorHandling = BranchInst::Create(
-            oldTerminatorBlock,
-            errorHandlingBlock,
-            compareSignatures,
-            &BB);
-      }
-
-      // Store signature adjustment in register D if there is a successor that
-      // is a fanin node.
-      if (ABS.hasFaninSuccessor(&BB)) {
-        // If this is actually our block, we do want to store 0 in D, so
-        // there's no special treatment here.
-        BasicBlock *authSibling = ABS.getAuthoritativeSibling(&BB);
-
-        ConstantInt* siblingSignature = ABS.getSignature(authSibling);
-        ConstantInt *signatureAdjustment = ConstantInt::get(intType,
-          APIntOps::Xor(signature->getValue(), siblingSignature->getValue()).getLimitedValue());
-
-        new StoreInst(signatureAdjustment, D, BB.getTerminator());
+      if (ABS->hasFaninSuccessor(&BB)) {
+        DEBUG(errs() << "[" << BB.getName() << "] has a fanin successors, setting D.\n");
+        insertRuntimeAdjustingSignature(BB);
       }
 
       DEBUG(BB.dump());
@@ -160,18 +91,99 @@ namespace cfcss {
     new StoreInst(ConstantInt::get(intType, 0), D, insertAlloca);
 
     // FIXME(hermannloose): Adapt instrumentation with checking code.
-    ignoreBlocks.insert(SignatureEntry(&entryBlock, ConstantInt::get(intType, 0)));
+    ignoreBlocks.insert(&entryBlock);
   }
 
 
-  // FIXME(hermannloose): How to access ABS?
-  void InstrumentBasicBlocks::instrumentBlock(BasicBlock &BB, Instruction *insertBefore) {
-    // TODO(hermannloose): Pull lots of code from runOnFunction() in here.
+  Instruction* InstrumentBasicBlocks::instrumentBlock(BasicBlock &BB, BasicBlock *errorHandlingBlock,
+      Instruction *insertBefore) {
+
+    DEBUG(errs() << "Instrumenting [" << BB.getName() << "]\n");
+
+    BasicBlock *authPred = ABS->getAuthoritativePredecessor(&BB);
+    assert(authPred);
+
+    // Compute the signature update.
+    ConstantInt* signature = ABS->getSignature(&BB);
+    assert(signature);
+    ConstantInt* pred_signature = ABS->getSignature(authPred);
+    assert(pred_signature);
+    ConstantInt *signatureDiff = ConstantInt::get(Type::getInt64Ty(getGlobalContext()),
+        APIntOps::Xor(signature->getValue(), pred_signature->getValue()).getLimitedValue());
+
+    LoadInst *loadGSR = new LoadInst(
+        GSR,
+        "GSR",
+        insertBefore);
+
+    BinaryOperator *signatureUpdate = BinaryOperator::Create(
+        Instruction::Xor,
+        loadGSR,
+        signatureDiff,
+        Twine("GSR"),
+        insertBefore);
+
+    if (ABS->isFaninNode(&BB)) {
+      LoadInst *loadD = new LoadInst(
+          D,
+          "D",
+          insertBefore);
+
+      signatureUpdate = BinaryOperator::Create(
+          Instruction::Xor,
+          signatureUpdate,
+          loadD,
+          Twine("GSR"),
+          insertBefore);
+    }
+
+    StoreInst *storeGSR = new StoreInst(
+        signatureUpdate,
+        GSR,
+        insertBefore);
+
+    ICmpInst *compareSignatures = new ICmpInst(
+        insertBefore,
+        CmpInst::ICMP_EQ,
+        signatureUpdate,
+        signature,
+        "SIGEQ");
+
+
+    // We branch after the comparison, so we split the block there.
+    BasicBlock::iterator nextInst(compareSignatures);
+    ++nextInst;
+
+    BasicBlock *oldTerminatorBlock = SplitBlock(&BB, nextInst, this);
+    ignoreBlocks.insert(oldTerminatorBlock);
+    ABS->notifyAboutSplitBlock(&BB, oldTerminatorBlock);
+
+    BB.getTerminator()->eraseFromParent();
+    BranchInst *errorHandling = BranchInst::Create(
+        oldTerminatorBlock,
+        errorHandlingBlock,
+        compareSignatures,
+        &BB);
+
+    return errorHandling;
+  }
+
+
+  Instruction* InstrumentBasicBlocks::insertRuntimeAdjustingSignature(BasicBlock &BB) {
+    // If this is actually our block, we do want to store 0 in D, so
+    // there's no special treatment here.
+    BasicBlock *authSibling = ABS->getAuthoritativeSibling(&BB);
+
+    ConstantInt* signature = ABS->getSignature(&BB);
+    ConstantInt* siblingSignature = ABS->getSignature(authSibling);
+    ConstantInt *signatureAdjustment = ConstantInt::get(Type::getInt64Ty(getGlobalContext()),
+      APIntOps::Xor(signature->getValue(), siblingSignature->getValue()).getLimitedValue());
+
+    return new StoreInst(signatureAdjustment, D, BB.getTerminator());
   }
 
 
   BasicBlock* InstrumentBasicBlocks::createErrorHandlingBlock(Function &F) {
-    IntegerType *intType = Type::getInt64Ty(getGlobalContext());
     BasicBlock *errorHandlingBlock = BasicBlock::Create(
         getGlobalContext(),
         "handleSignatureFault",
@@ -184,31 +196,17 @@ namespace cfcss {
     CallInst::Create(ud2, ArrayRef<Value*>(), "", errorHandlingBlock);
     new UnreachableInst(getGlobalContext(), errorHandlingBlock);
 
-    ignoreBlocks.insert(SignatureEntry(errorHandlingBlock,
-        ConstantInt::get(intType, 0)));
+    ignoreBlocks.insert(errorHandlingBlock);
+
+    DEBUG(errs() << "Created error handling block.\n");
+    DEBUG(errorHandlingBlock->dump());
 
     return errorHandlingBlock;
   }
 
 
-  /**
-   *
-   */
-  ConstantInt* InstrumentBasicBlocks::getSignature(BasicBlock * const BB,
-      AssignBlockSignatures &ABS) {
-
-    ConstantInt *signature = ABS.getSignature(BB);
-    if (!signature) {
-      signature = ignoreBlocks.lookup(BB);
-    }
-
-    assert(signature && "We should have a valid signature at this point!");
-
-    return signature;
-  }
-
   char InstrumentBasicBlocks::ID = 0;
 }
 
 static RegisterPass<cfcss::InstrumentBasicBlocks>
-    X("instrument-blocks", "Instrument basic blocks with CFCSS signatures", false, false);
+    X("instrument-blocks", "Instrument basic blocks (CFCSS)", false, false);

@@ -21,12 +21,11 @@
 namespace cfcss {
 
   typedef std::pair<BasicBlock*, ConstantInt*> SignatureEntry;
-  typedef std::pair<BasicBlock*, bool> FaninEntry;
   typedef std::pair<BasicBlock*, BasicBlock*> BlockEntry;
 
   AssignBlockSignatures::AssignBlockSignatures() :
       FunctionPass(ID), blockSignatures(), signatureUpdateSources(),
-      adjustFor(), blockFanin() {
+      adjustFor(), faninBlocks(), faninSuccessors() {
 
     nextID = 0;
   }
@@ -46,31 +45,54 @@ namespace cfcss {
       DEBUG(errs() << "[" << i->getName() << "] has signature " << nextID << ".\n");
       ++nextID;
 
-      int predecessors = 0;
-      BasicBlock *authoritativePredecessor = NULL;
-      for (pred_iterator pred_i = pred_begin(i), pred_e = pred_end(e);
-          pred_i != pred_e; ++pred_i) {
-
-        /**
-         * The authoritative predecessor is determined once per fanin node,
-         * for the set of its predecessors. The dealiasing pass required by
-         * this pass ensures that multiple fanin nodes share none or all of
-         * their predecessors.
-         */
-        if (!(adjustFor.lookup(*pred_i))) {
-          if (!authoritativePredecessor) {
-            authoritativePredecessor = *pred_i;
-          } else {
-            // Keep this for convenient lookup later on.
-            faninSuccessors.insert(FaninEntry(*pred_i, true));
-          }
-          adjustFor.insert(BlockEntry(*pred_i, authoritativePredecessor));
-        }
-
-        ++predecessors;
+      if (pred_begin(i) == pred_end(i)) {
+        // i.e. the entry block of a function.
+        continue;
       }
 
-      blockFanin.insert(FaninEntry(i, (predecessors > 1)));
+      // Find fanin nodes and track their predecessors for efficient lookup
+      // later on.
+      if (++pred_begin(i) != pred_end(i)) {
+        faninBlocks.insert(i);
+        for (pred_iterator pred_i = pred_begin(i), pred_e = pred_end(i);
+            pred_i != pred_e; ++pred_i) {
+
+          faninSuccessors.insert(*pred_i);
+        }
+      }
+
+      // Determine authoritative predecessors for each block. This is used in
+      // calculating signature updates and adjustments during instrumentation.
+      if (faninBlocks.count(i)) {
+        BasicBlock *authoritativePredecessor = NULL;
+        for (pred_iterator pred_i = pred_begin(i), pred_e = pred_end(i);
+            pred_i != pred_e; ++pred_i) {
+
+          // This should be the same for all predecessors. They've either all
+          // been touched in an earlier iteration or ignored in the
+          // else-branch.
+          if (!(adjustFor.lookup(*pred_i))) {
+            if (!authoritativePredecessor) {
+              // Pick the first predecessor we get as the authoritative one.
+              authoritativePredecessor = *pred_i;
+              DEBUG(errs() << "[" << (*pred_i)->getName() << "] is authoritative predecessor "
+                  << "for [" << i->getName() << "].\n");
+            }
+
+            adjustFor.insert(BlockEntry(*pred_i, authoritativePredecessor));
+            DEBUG(errs() << "[" << (*pred_i)->getName() << "] will adjust signature for ["
+                << authoritativePredecessor->getName() << "].\n");
+          }
+        }
+      } else {
+        pred_iterator singlePred = pred_begin(i);
+        // If this block won't be touched by later iterations, set its
+        // authoritative sibling to itself for uniform treatment.
+        if (!(adjustFor.lookup(*singlePred)) && !(faninSuccessors.count(*singlePred))) {
+          DEBUG(errs() << "[" << i->getName() << "] has no fanin successors.\n");
+          adjustFor.insert(BlockEntry(*singlePred, *singlePred));
+        }
+      }
     }
 
     return false;
@@ -92,13 +114,22 @@ namespace cfcss {
   }
 
 
+  void AssignBlockSignatures::notifyAboutSplitBlock(BasicBlock * const head,
+      BasicBlock * const tail) {
+
+    adjustFor.insert(BlockEntry(tail, adjustFor.lookup(head)));
+  }
+
+
   bool AssignBlockSignatures::isFaninNode(BasicBlock * const BB) {
-    return blockFanin.lookup(BB);
+    DEBUG(errs() << "Checking whether [" << BB->getName() << "] is a fanin node.\n");
+    return faninBlocks.count(BB);
   }
 
 
   bool AssignBlockSignatures::hasFaninSuccessor(BasicBlock * const BB) {
-    return faninSuccessors.lookup(BB);
+    DEBUG(errs() << "Checking whether [" << BB->getName() << "] has fanin successors.\n");
+    return faninSuccessors.count(BB);
   }
 
 
@@ -106,4 +137,4 @@ namespace cfcss {
 }
 
 static RegisterPass<cfcss::AssignBlockSignatures>
-    X("assign-block-sigs", "Assign block signatures for CFCSS", false, true);
+    X("assign-block-sigs", "Assign block signatures (CFCSS)", false, true);

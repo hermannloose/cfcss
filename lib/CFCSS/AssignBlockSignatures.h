@@ -6,6 +6,7 @@
 #pragma once
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Constants.h"
 #include "llvm/Pass.h"
 
@@ -14,7 +15,8 @@ using namespace llvm;
 namespace cfcss {
   typedef DenseMap<BasicBlock*, ConstantInt*> SignatureMap;
   typedef DenseMap<BasicBlock*, BasicBlock*> BlockMap;
-  typedef DenseMap<BasicBlock*, bool> FaninMap;
+  // TODO(hermannloose): Is 64 a sensible value?
+  typedef SmallPtrSet<BasicBlock*, 64> BlockSet;
 
   class AssignBlockSignatures : public FunctionPass {
     public:
@@ -32,12 +34,15 @@ namespace cfcss {
       BasicBlock* getAuthoritativePredecessor(BasicBlock * const BB);
       BasicBlock* getAuthoritativeSibling(BasicBlock * const BB);
 
+      void notifyAboutSplitBlock(BasicBlock * const head,
+          BasicBlock * const tail);
+
     private:
       SignatureMap blockSignatures;
       SignatureMap signatureUpdateSources;
       BlockMap adjustFor;
-      FaninMap blockFanin;
-      FaninMap faninSuccessors;
+      BlockSet faninBlocks;
+      BlockSet faninSuccessors;
       unsigned long nextID;
   };
 

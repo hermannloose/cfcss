@@ -14,8 +14,8 @@
 using namespace llvm;
 
 namespace cfcss {
-  // FIXME(hermannloose): Remove duplication.
-  typedef DenseMap<BasicBlock*, ConstantInt*> SignatureMap;
+  // FIXME(hermannloose): Remove duplication & is 64 sensible?
+  typedef SmallPtrSet<BasicBlock*, 64> BlockSet;
 
   class InstrumentBasicBlocks : public FunctionPass {
 
@@ -29,17 +29,20 @@ namespace cfcss {
       virtual bool runOnFunction(Function &F);
 
     private:
+      AssignBlockSignatures *ABS;
+
       AllocaInst *GSR;
       AllocaInst *D;
 
-      SignatureMap ignoreBlocks;
+      BlockSet ignoreBlocks;
 
       void instrumentEntryBlock(BasicBlock &entryBlock);
-      void instrumentBlock(BasicBlock &BB, Instruction *insertBefore);
       BasicBlock* createErrorHandlingBlock(Function &F);
 
-      ConstantInt* getSignature(BasicBlock * const BB,
-          AssignBlockSignatures &ABS);
+      Instruction* instrumentBlock(BasicBlock &BB, BasicBlock *errorHandlingBlock,
+          Instruction *insertBefore);
+
+      Instruction* insertRuntimeAdjustingSignature(BasicBlock &BB);
 
       GlobalVariable *interFunctionGSR;
   };
