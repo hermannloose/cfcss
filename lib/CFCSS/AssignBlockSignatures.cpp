@@ -14,6 +14,7 @@
 #include "llvm/DerivedTypes.h"
 #include "llvm/Function.h"
 #include "llvm/LLVMContext.h"
+#include "llvm/Module.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -24,10 +25,8 @@ namespace cfcss {
   typedef std::pair<BasicBlock*, BasicBlock*> BlockEntry;
 
   AssignBlockSignatures::AssignBlockSignatures() :
-      FunctionPass(ID), blockSignatures(), signatureUpdateSources(),
-      adjustFor(), faninBlocks(), faninSuccessors() {
-
-    nextID = 0;
+      ModulePass(ID), blockSignatures(), signatureUpdateSources(),
+      adjustFor(), faninBlocks(), faninSuccessors(), nextID(0) {
   }
 
 
@@ -37,60 +36,63 @@ namespace cfcss {
   }
 
 
-  bool AssignBlockSignatures::runOnFunction(Function &F) {
-    for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i) {
-      blockSignatures.insert(SignatureEntry(i, ConstantInt::get(
-          Type::getInt64Ty(getGlobalContext()), nextID)));
+  bool AssignBlockSignatures::runOnModule(Module &M) {
+    for (Module::iterator fi = M.begin(), fe = M.end(); fi != fe; ++fi) {
+      DEBUG(errs() << "Running on " << fi->getName() << ".\n");
+      for (Function::iterator i = fi->begin(), e = fi->end(); i != e; ++i) {
+        blockSignatures.insert(SignatureEntry(i, ConstantInt::get(
+            Type::getInt64Ty(getGlobalContext()), nextID)));
 
-      DEBUG(errs() << "[" << i->getName() << "] has signature " << nextID << ".\n");
-      ++nextID;
+        DEBUG(errs() << "[" << i->getName() << "] has signature " << nextID << ".\n");
+        ++nextID;
 
-      if (pred_begin(i) == pred_end(i)) {
-        // i.e. the entry block of a function.
-        continue;
-      }
-
-      // Find fanin nodes and track their predecessors for efficient lookup
-      // later on.
-      if (++pred_begin(i) != pred_end(i)) {
-        faninBlocks.insert(i);
-        for (pred_iterator pred_i = pred_begin(i), pred_e = pred_end(i);
-            pred_i != pred_e; ++pred_i) {
-
-          faninSuccessors.insert(*pred_i);
+        if (pred_begin(i) == pred_end(i)) {
+          // i.e. the entry block of a function.
+          continue;
         }
-      }
 
-      // Determine authoritative predecessors for each block. This is used in
-      // calculating signature updates and adjustments during instrumentation.
-      if (faninBlocks.count(i)) {
-        BasicBlock *authoritativePredecessor = NULL;
-        for (pred_iterator pred_i = pred_begin(i), pred_e = pred_end(i);
-            pred_i != pred_e; ++pred_i) {
+        // Find fanin nodes and track their predecessors for efficient lookup
+        // later on.
+        if (++pred_begin(i) != pred_end(i)) {
+          faninBlocks.insert(i);
+          for (pred_iterator pred_i = pred_begin(i), pred_e = pred_end(i);
+              pred_i != pred_e; ++pred_i) {
 
-          // This should be the same for all predecessors. They've either all
-          // been touched in an earlier iteration or ignored in the
-          // else-branch.
-          if (!(adjustFor.lookup(*pred_i))) {
-            if (!authoritativePredecessor) {
-              // Pick the first predecessor we get as the authoritative one.
-              authoritativePredecessor = *pred_i;
-              DEBUG(errs() << "[" << (*pred_i)->getName() << "] is authoritative predecessor "
-                  << "for [" << i->getName() << "].\n");
-            }
-
-            adjustFor.insert(BlockEntry(*pred_i, authoritativePredecessor));
-            DEBUG(errs() << "[" << (*pred_i)->getName() << "] will adjust signature for ["
-                << authoritativePredecessor->getName() << "].\n");
+            faninSuccessors.insert(*pred_i);
           }
         }
-      } else {
-        pred_iterator singlePred = pred_begin(i);
-        // If this block won't be touched by later iterations, set its
-        // authoritative sibling to itself for uniform treatment.
-        if (!(adjustFor.lookup(*singlePred)) && !(faninSuccessors.count(*singlePred))) {
-          DEBUG(errs() << "[" << i->getName() << "] has no fanin successors.\n");
-          adjustFor.insert(BlockEntry(*singlePred, *singlePred));
+
+        // Determine authoritative predecessors for each block. This is used in
+        // calculating signature updates and adjustments during instrumentation.
+        if (faninBlocks.count(i)) {
+          BasicBlock *authoritativePredecessor = NULL;
+          for (pred_iterator pred_i = pred_begin(i), pred_e = pred_end(i);
+              pred_i != pred_e; ++pred_i) {
+
+            // This should be the same for all predecessors. They've either all
+            // been touched in an earlier iteration or ignored in the
+            // else-branch.
+            if (!(adjustFor.lookup(*pred_i))) {
+              if (!authoritativePredecessor) {
+                // Pick the first predecessor we get as the authoritative one.
+                authoritativePredecessor = *pred_i;
+                DEBUG(errs() << "[" << (*pred_i)->getName() << "] is authoritative predecessor "
+                    << "for [" << i->getName() << "].\n");
+              }
+
+              adjustFor.insert(BlockEntry(*pred_i, authoritativePredecessor));
+              DEBUG(errs() << "[" << (*pred_i)->getName() << "] will adjust signature for ["
+                  << authoritativePredecessor->getName() << "].\n");
+            }
+          }
+        } else {
+          pred_iterator singlePred = pred_begin(i);
+          // If this block won't be touched by later iterations, set its
+          // authoritative sibling to itself for uniform treatment.
+          if (!(adjustFor.lookup(*singlePred)) && !(faninSuccessors.count(*singlePred))) {
+            DEBUG(errs() << "[" << i->getName() << "] has no fanin successors.\n");
+            adjustFor.insert(BlockEntry(*singlePred, *singlePred));
+          }
         }
       }
     }

@@ -18,14 +18,14 @@ namespace cfcss {
   // TODO(hermannloose): Is 64 a sensible value?
   typedef SmallPtrSet<BasicBlock*, 64> BlockSet;
 
-  class AssignBlockSignatures : public FunctionPass {
+  class AssignBlockSignatures : public ModulePass {
     public:
       static char ID;
 
       AssignBlockSignatures();
 
       virtual void getAnalysisUsage(AnalysisUsage &AU) const;
-      virtual bool runOnFunction(Function &F);
+      virtual bool runOnModule(Module &M);
 
       ConstantInt* getSignature(BasicBlock * const BB);
       bool isFaninNode(BasicBlock * const BB);
@@ -38,6 +38,9 @@ namespace cfcss {
           BasicBlock * const tail);
 
     private:
+      // FIXME(hermannloose): All this state is maintained across invocations
+      // of runOnFunction(), which LLVM explicitly forbids, although it does
+      // seem to work. Using a ModulePass would be legal and probably nicer.
       SignatureMap blockSignatures;
       SignatureMap signatureUpdateSources;
       BlockMap adjustFor;
