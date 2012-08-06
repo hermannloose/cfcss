@@ -8,6 +8,7 @@
 
 #include "AssignBlockSignatures.h"
 #include "RemoveCFGAliasing.h"
+#include "SplitAfterCall.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/Constants.h"
@@ -18,6 +19,8 @@
 #include "llvm/Support/CFG.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+
+static const char *debugPrefix = "AssignBlockSignatures: ";
 
 namespace cfcss {
 
@@ -31,19 +34,35 @@ namespace cfcss {
 
 
   void AssignBlockSignatures::getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.setPreservesAll();
+    // TODO(hermannloose): What do we preserve?
     AU.addRequired<RemoveCFGAliasing>();
+    AU.addRequired<SplitAfterCall>();
   }
 
 
   bool AssignBlockSignatures::runOnModule(Module &M) {
     for (Module::iterator fi = M.begin(), fe = M.end(); fi != fe; ++fi) {
-      DEBUG(errs() << "Running on " << fi->getName() << ".\n");
+      if (fi->isDeclaration()) {
+        DEBUG(errs() << debugPrefix << "Skipping [" << fi->getName() << "], is a declaration.\n");
+        continue;
+      }
+
+      DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "].\n");
+
+      // We don't need the results of these but we need them to run.
+      getAnalysis<RemoveCFGAliasing>(*fi);
+      getAnalysis<SplitAfterCall>(*fi);
+
+      DEBUG(errs() << debugPrefix << "Required passes ran for ["
+          << fi->getName() << "].\n");
+
       for (Function::iterator i = fi->begin(), e = fi->end(); i != e; ++i) {
         blockSignatures.insert(SignatureEntry(i, ConstantInt::get(
             Type::getInt64Ty(getGlobalContext()), nextID)));
 
-        DEBUG(errs() << "[" << i->getName() << "] has signature " << nextID << ".\n");
+        DEBUG(errs() << debugPrefix << "[" << i->getName()
+            << "] has signature " << nextID << ".\n");
+
         ++nextID;
 
         if (pred_begin(i) == pred_end(i)) {
@@ -76,12 +95,13 @@ namespace cfcss {
               if (!authoritativePredecessor) {
                 // Pick the first predecessor we get as the authoritative one.
                 authoritativePredecessor = *pred_i;
-                DEBUG(errs() << "[" << (*pred_i)->getName() << "] is authoritative predecessor "
-                    << "for [" << i->getName() << "].\n");
+                DEBUG(errs() << debugPrefix << "[" << (*pred_i)->getName()
+                    << "] is authoritative predecessor for [" << i->getName() << "].\n");
               }
 
               adjustFor.insert(BlockEntry(*pred_i, authoritativePredecessor));
-              DEBUG(errs() << "[" << (*pred_i)->getName() << "] will adjust signature for ["
+              DEBUG(errs() << debugPrefix << "[" << (*pred_i)->getName()
+                  << "] will adjust signature for ["
                   << authoritativePredecessor->getName() << "].\n");
             }
           }
@@ -90,11 +110,13 @@ namespace cfcss {
           // If this block won't be touched by later iterations, set its
           // authoritative sibling to itself for uniform treatment.
           if (!(adjustFor.lookup(*singlePred)) && !(faninSuccessors.count(*singlePred))) {
-            DEBUG(errs() << "[" << i->getName() << "] has no fanin successors.\n");
+            DEBUG(errs() << debugPrefix << "[" << i->getName() << "] has no fanin successors.\n");
             adjustFor.insert(BlockEntry(*singlePred, *singlePred));
           }
         }
       }
+
+      DEBUG(errs() << debugPrefix << "Finished on [" << fi->getName() << "].\n");
     }
 
     return false;

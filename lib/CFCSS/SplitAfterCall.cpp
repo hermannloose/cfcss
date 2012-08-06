@@ -8,11 +8,15 @@
 
 #include "SplitAfterCall.h"
 
+#include "RemoveCFGAliasing.h"
+
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Instructions.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+
+static const char *debugPrefix = "SplitAfterCall: ";
 
 namespace cfcss {
 
@@ -21,35 +25,38 @@ namespace cfcss {
   SplitAfterCall::SplitAfterCall() : FunctionPass(ID), ignoreBlocks() {}
 
   void SplitAfterCall::getAnalysisUsage(AnalysisUsage &AU) const {
-    // TODO(hermannloose): Which ones do we preserve, actually?
+    // TODO(hermannloose): What do we preserve?
+    AU.addPreserved<RemoveCFGAliasing>();
   }
 
   bool SplitAfterCall::runOnFunction(Function &F) {
+    if (F.isDeclaration()) {
+      DEBUG(errs() << debugPrefix << "Skipping [" << F.getName() << "], is a declaration.\n");
+      return false;
+    }
+
+    DEBUG(errs() << debugPrefix << "Running on [" << F.getName() << "].\n");
     bool modifiedCFG = false;
 
     for (Function::iterator bi = F.begin(), be = F.end(); bi != be; ++bi) {
+      // FIXME(hermannloose): This might not be needed.
       if (ignoreBlocks.count(bi)) {
-        DEBUG(errs() << "Ignoring [" << bi->getName() << "].\n");
+        //DEBUG(errs() << "Ignoring [" << bi->getName() << "].\n");
         continue;
       }
-      DEBUG(errs() << "Inspecting [" << bi->getName() << "].\n");
+      //DEBUG(errs() << "Inspecting [" << bi->getName() << "].\n");
 
       for (BasicBlock::iterator ii = bi->begin(), ie = bi->end(); ii != ie; ++ii) {
-        DEBUG(errs() << "Inspecting instruction ...\n");
-        DEBUG(ii->dump());
         if (isa<CallInst>(ii)) {
-          DEBUG(errs() << "Found CallInst in [" << bi->getName() << "]:\n");
+          DEBUG(errs() << debugPrefix << "Found CallInst in [" << bi->getName() << "]:\n");
           DEBUG(ii->dump());
 
           // Don't let our iterator wander off into the split block.
           BasicBlock::iterator nextInst(ii);
           ++nextInst;
 
-          BasicBlock *newBlock = llvm::SplitBlock(bi, nextInst, this);
+          llvm::SplitBlock(bi, nextInst, this);
           ignoreBlocks.insert(bi);
-          DEBUG(errs() << "Split basic block.\n");
-          DEBUG(bi->dump());
-          DEBUG(newBlock->dump());
 
           ++NumBlocksSplit;
           modifiedCFG = true;
@@ -57,6 +64,7 @@ namespace cfcss {
       }
     }
 
+    DEBUG(errs() << debugPrefix << "Finished on [" << F.getName() << "].\n");
     return modifiedCFG;
   }
 
@@ -64,4 +72,4 @@ namespace cfcss {
 }
 
 static RegisterPass<cfcss::SplitAfterCall>
-    X("split-after-call", "Split basic blocks after call instructions (CFCSS)", false, false);
+    X("split-after-call", "Split basic blocks after call instructions (CFCSS)", true, true);
