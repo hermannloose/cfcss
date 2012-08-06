@@ -41,25 +41,33 @@ namespace cfcss {
     for (Function::iterator bi = F.begin(), be = F.end(); bi != be; ++bi) {
       // FIXME(hermannloose): This might not be needed.
       if (ignoreBlocks.count(bi)) {
-        //DEBUG(errs() << "Ignoring [" << bi->getName() << "].\n");
         continue;
       }
-      //DEBUG(errs() << "Inspecting [" << bi->getName() << "].\n");
 
       for (BasicBlock::iterator ii = bi->begin(), ie = bi->end(); ii != ie; ++ii) {
-        if (isa<CallInst>(ii)) {
+        if (CallInst *callInst = dyn_cast<CallInst>(ii)) {
           DEBUG(errs() << debugPrefix << "Found CallInst in [" << bi->getName() << "]:\n");
           DEBUG(ii->dump());
 
-          // Don't let our iterator wander off into the split block.
-          BasicBlock::iterator nextInst(ii);
-          ++nextInst;
+          if (Function *calledFunction = callInst->getCalledFunction()) {
+            if (!calledFunction->isDeclaration()) {
+              // Don't let our iterator wander off into the split block.
+              BasicBlock::iterator nextInst(ii);
+              ++nextInst;
 
-          llvm::SplitBlock(bi, nextInst, this);
-          ignoreBlocks.insert(bi);
+              llvm::SplitBlock(bi, nextInst, this);
+              ignoreBlocks.insert(bi);
 
-          ++NumBlocksSplit;
-          modifiedCFG = true;
+              ++NumBlocksSplit;
+              modifiedCFG = true;
+            } else {
+              // We won't have signatures for those functions.
+              DEBUG(errs() << debugPrefix << "Called function is a declaration, skipping.\n");
+            }
+          } else {
+            // We can't handle function pointers, inline assembly, etc.
+            DEBUG(errs() << debugPrefix << "Not a direct function call, skipping.\n");
+          }
         }
       }
     }
