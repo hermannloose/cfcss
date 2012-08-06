@@ -7,6 +7,7 @@
 
 #include "AssignBlockSignatures.h"
 
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Instructions.h"
 #include "llvm/Module.h"
 #include "llvm/Pass.h"
@@ -17,16 +18,15 @@ namespace cfcss {
   // FIXME(hermannloose): Remove duplication & is 64 sensible?
   typedef SmallPtrSet<BasicBlock*, 64> BlockSet;
 
-  class InstrumentBasicBlocks : public FunctionPass {
+  class InstrumentBasicBlocks : public ModulePass {
 
     public:
       static char ID;
 
       InstrumentBasicBlocks();
 
-      virtual bool doInitialization(Module &M);
       virtual void getAnalysisUsage(AnalysisUsage &AU) const;
-      virtual bool runOnFunction(Function &F);
+      virtual bool runOnModule(Module &M);
 
     private:
       AssignBlockSignatures *ABS;
@@ -37,7 +37,7 @@ namespace cfcss {
       BlockSet ignoreBlocks;
 
       void instrumentEntryBlock(BasicBlock &entryBlock);
-      BasicBlock* createErrorHandlingBlock(Function &F);
+      BasicBlock* createErrorHandlingBlock(Function *F);
 
       Instruction* instrumentBlock(BasicBlock &BB, BasicBlock *errorHandlingBlock,
           Instruction *insertBefore);

@@ -8,6 +8,7 @@
 
 #include "AssignBlockSignatures.h"
 #include "InstrumentBasicBlocks.h"
+#include "RemoveCFGAliasing.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/Constants.h"
@@ -25,11 +26,22 @@
 
 using namespace llvm;
 
+static const char *debugPrefix = "InstrumentBasicBlocks: ";
+
 namespace cfcss {
-  InstrumentBasicBlocks::InstrumentBasicBlocks() : FunctionPass(ID),
+  InstrumentBasicBlocks::InstrumentBasicBlocks() : ModulePass(ID),
       ignoreBlocks() {}
 
-  bool InstrumentBasicBlocks::doInitialization(Module &M) {
+  void InstrumentBasicBlocks::getAnalysisUsage(AnalysisUsage &AU) const {
+    AU.addRequired<AssignBlockSignatures>();
+
+    AU.addPreserved<AssignBlockSignatures>();
+    AU.addPreserved<RemoveCFGAliasing>();
+  }
+
+  bool InstrumentBasicBlocks::runOnModule(Module &M) {
+    ABS = &getAnalysis<AssignBlockSignatures>();
+
     interFunctionGSR = new GlobalVariable(
         M,
         Type::getInt64Ty(getGlobalContext()),
@@ -38,42 +50,42 @@ namespace cfcss {
         ConstantInt::get(Type::getInt64Ty(getGlobalContext()), 0),
         "interFunctionGSR");
 
-    return false;
-  }
-
-  void InstrumentBasicBlocks::getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.addRequired<AssignBlockSignatures>();
-    AU.addPreserved<AssignBlockSignatures>();
-  }
-
-  bool InstrumentBasicBlocks::runOnFunction(Function &F) {
-    ABS = &getAnalysis<AssignBlockSignatures>();
-
-    instrumentEntryBlock(F.getEntryBlock());
-    BasicBlock *errorHandlingBlock = createErrorHandlingBlock(F);
-
-    for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i) {
-      if (ignoreBlocks.count(i)) {
-        DEBUG(errs() << "Ignoring [" << i->getName() << "].\n");
-        // Ignore the remainders of previously split blocks, as well as the
-        // entry block, which is handled separately.
+    for (Module::iterator fi = M.begin(), fe = M.end(); fi != fe; ++fi) {
+      if (fi->isDeclaration()) {
+        DEBUG(errs() << debugPrefix << "Skipping [" << fi->getName() << "], is a declaration.\n");
         continue;
       }
 
-      BasicBlock &BB = *i;
-      Instruction *insertionPoint = BB.getFirstNonPHI();
+      DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "].\n");
 
-      instrumentBlock(BB, errorHandlingBlock, insertionPoint);
+      instrumentEntryBlock(fi->getEntryBlock());
+      BasicBlock *errorHandlingBlock = createErrorHandlingBlock(fi);
 
-      if (ABS->hasFaninSuccessor(&BB)) {
-        DEBUG(errs() << "[" << BB.getName() << "] has a fanin successors, setting D.\n");
-        insertRuntimeAdjustingSignature(BB);
+      for (Function::iterator i = fi->begin(), e = fi->end(); i != e; ++i) {
+        if (ignoreBlocks.count(i)) {
+          DEBUG(errs() << debugPrefix << "Ignoring [" << i->getName() << "].\n");
+          // Ignore the remainders of previously split blocks, as well as the
+          // entry block, which is handled separately.
+          continue;
+        }
+
+        BasicBlock &BB = *i;
+        Instruction *insertionPoint = BB.getFirstNonPHI();
+
+        instrumentBlock(BB, errorHandlingBlock, insertionPoint);
+
+        if (ABS->hasFaninSuccessor(&BB)) {
+          DEBUG(errs() << debugPrefix << "[" << BB.getName()
+              << "] has a fanin successors, setting D.\n");
+
+          insertRuntimeAdjustingSignature(BB);
+        }
+
+        DEBUG(BB.dump());
       }
 
-      DEBUG(BB.dump());
+      DEBUG(errs() << debugPrefix << "Run on function " << fi->getName().str() << " complete.\n");
     }
-
-    DEBUG(errs() << "Run on function " << F.getName().str() << " complete.\n");
 
     return true;
   }
@@ -98,7 +110,7 @@ namespace cfcss {
   Instruction* InstrumentBasicBlocks::instrumentBlock(BasicBlock &BB, BasicBlock *errorHandlingBlock,
       Instruction *insertBefore) {
 
-    DEBUG(errs() << "Instrumenting [" << BB.getName() << "]\n");
+    DEBUG(errs() << debugPrefix << "Instrumenting [" << BB.getName() << "]\n");
 
     BasicBlock *authPred = ABS->getAuthoritativePredecessor(&BB);
     assert(authPred);
@@ -183,11 +195,11 @@ namespace cfcss {
   }
 
 
-  BasicBlock* InstrumentBasicBlocks::createErrorHandlingBlock(Function &F) {
+  BasicBlock* InstrumentBasicBlocks::createErrorHandlingBlock(Function *F) {
     BasicBlock *errorHandlingBlock = BasicBlock::Create(
         getGlobalContext(),
         "handleSignatureFault",
-        &F);
+        F);
 
     InlineAsm *ud2 = InlineAsm::get(FunctionType::get(
         Type::getVoidTy(getGlobalContext()), ArrayRef<Type*>(), false),
@@ -198,7 +210,7 @@ namespace cfcss {
 
     ignoreBlocks.insert(errorHandlingBlock);
 
-    DEBUG(errs() << "Created error handling block.\n");
+    DEBUG(errs() << debugPrefix << "Created error handling block.\n");
     DEBUG(errorHandlingBlock->dump());
 
     return errorHandlingBlock;
