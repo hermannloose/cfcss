@@ -34,17 +34,24 @@ namespace cfcss {
   InstrumentBasicBlocks::InstrumentBasicBlocks() : ModulePass(ID),
       ignoreBlocks() {}
 
+
   void InstrumentBasicBlocks::getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequiredTransitive<AssignBlockSignatures>();
+    AU.addRequiredTransitive<ReturnBlocks>();
     AU.addRequiredTransitive<SplitAfterCall>();
 
+    // TODO(hermannloose): AU.setPreservesAll() would probably not hurt.
     AU.addPreserved<AssignBlockSignatures>();
     AU.addPreserved<RemoveCFGAliasing>();
+    AU.addPreserved<ReturnBlocks>();
     AU.addPreserved<SplitAfterCall>();
   }
 
+
   bool InstrumentBasicBlocks::runOnModule(Module &M) {
-    SplitAfterCall &SAC = getAnalysis<SplitAfterCall>();
+    ABS = &getAnalysis<AssignBlockSignatures>();
+    RB = &getAnalysis<ReturnBlocks>();
+    SAC = &getAnalysis<SplitAfterCall>();
 
     interFunctionGSR = new GlobalVariable(
         M,

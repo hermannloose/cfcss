@@ -9,6 +9,7 @@
 #include "AssignBlockSignatures.h"
 
 #include "RemoveCFGAliasing.h"
+#include "ReturnBlocks.h"
 #include "SplitAfterCall.h"
 
 #include "llvm/ADT/APInt.h"
@@ -38,7 +39,9 @@ namespace cfcss {
     AU.addRequiredTransitive<RemoveCFGAliasing>();
     AU.addRequiredTransitive<SplitAfterCall>();
 
+    // TODO(hermannloose): AU.setPreservesAll() would probably not hurt.
     AU.addPreserved<RemoveCFGAliasing>();
+    AU.addPreserved<ReturnBlocks>();
     AU.addPreserved<SplitAfterCall>();
   }
 

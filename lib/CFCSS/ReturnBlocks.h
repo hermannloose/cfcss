@@ -15,24 +15,21 @@ using namespace llvm;
 namespace cfcss {
   // FIXME(hermannloose): Remove duplication & is 64 sensible?
   typedef SmallPtrSet<BasicBlock*, 64> BlockSet;
-  typedef DenseMap<BasicBlock*, Function*> BlockToFunctionMap;
+  typedef DenseMap<Function*, BlockSet*> ReturnBlockMap;
 
-  class SplitAfterCall : public ModulePass {
+  class ReturnBlocks : public ModulePass {
     public:
       static char ID;
 
-      SplitAfterCall();
+      ReturnBlocks();
 
       virtual void getAnalysisUsage(AnalysisUsage &AU) const;
       virtual bool runOnModule(Module &M);
 
-      bool wasSplitAfterCall(BasicBlock * const BB);
-      Function* getCalledFunctionForReturnBlock(BasicBlock * const BB);
+      BlockSet* getReturnBlocks(Function * const F);
 
     private:
-      BlockSet ignoreBlocks;
-      BlockSet afterCall;
-      BlockToFunctionMap returnFromCallTo;
+      ReturnBlockMap returnBlocks;
   };
 
 }

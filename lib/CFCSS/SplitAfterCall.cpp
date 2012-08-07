@@ -9,6 +9,7 @@
 #include "SplitAfterCall.h"
 
 #include "RemoveCFGAliasing.h"
+#include "ReturnBlocks.h"
 
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Instructions.h"
@@ -22,10 +23,15 @@ namespace cfcss {
 
   STATISTIC(NumBlocksSplit, "Number of basic blocks split after call instructions");
 
-  SplitAfterCall::SplitAfterCall() : ModulePass(ID), ignoreBlocks() {}
+  typedef std::pair<BasicBlock*, Function*> BlockToFunctionEntry;
+
+  SplitAfterCall::SplitAfterCall() : ModulePass(ID), ignoreBlocks(), afterCall(),
+      returnFromCallTo() {}
 
   void SplitAfterCall::getAnalysisUsage(AnalysisUsage &AU) const {
+    // TODO(hermannloose): AU.setPreservesAll() would probably not hurt.
     AU.addPreserved<RemoveCFGAliasing>();
+    AU.addPreserved<ReturnBlocks>();
   }
 
   bool SplitAfterCall::runOnModule(Module &M) {
@@ -56,7 +62,9 @@ namespace cfcss {
                 BasicBlock::iterator nextInst(ii);
                 ++nextInst;
 
-                afterCall.insert(llvm::SplitBlock(bi, nextInst, this));
+                BasicBlock *afterCallBlock = llvm::SplitBlock(bi, nextInst, this);
+                afterCall.insert(afterCallBlock);
+                returnFromCallTo.insert(BlockToFunctionEntry(afterCallBlock, calledFunction));
                 ignoreBlocks.insert(bi);
 
                 ++NumBlocksSplit;
@@ -79,8 +87,14 @@ namespace cfcss {
     return modifiedCFG;
   }
 
+
   bool SplitAfterCall::wasSplitAfterCall(BasicBlock * const BB) {
     return afterCall.count(BB);
+  }
+
+
+  Function* SplitAfterCall::getCalledFunctionForReturnBlock(BasicBlock * const BB) {
+    return returnFromCallTo.lookup(BB);
   }
 
   char SplitAfterCall::ID = 0;

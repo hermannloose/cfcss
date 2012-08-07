@@ -6,6 +6,8 @@
 #pragma once
 
 #include "AssignBlockSignatures.h"
+#include "ReturnBlocks.h"
+#include "SplitAfterCall.h"
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Instructions.h"
@@ -30,6 +32,8 @@ namespace cfcss {
 
     private:
       AssignBlockSignatures *ABS;
+      ReturnBlocks *RB;
+      SplitAfterCall *SAC;
 
       AllocaInst *GSR;
       AllocaInst *D;
