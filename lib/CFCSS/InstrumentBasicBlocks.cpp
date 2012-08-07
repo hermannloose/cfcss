@@ -6,9 +6,11 @@
 
 #define DEBUG_TYPE "cfcss"
 
-#include "AssignBlockSignatures.h"
 #include "InstrumentBasicBlocks.h"
+
+#include "AssignBlockSignatures.h"
 #include "RemoveCFGAliasing.h"
+#include "SplitAfterCall.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/Constants.h"
@@ -33,14 +35,16 @@ namespace cfcss {
       ignoreBlocks() {}
 
   void InstrumentBasicBlocks::getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.addRequired<AssignBlockSignatures>();
+    AU.addRequiredTransitive<AssignBlockSignatures>();
+    AU.addRequiredTransitive<SplitAfterCall>();
 
     AU.addPreserved<AssignBlockSignatures>();
     AU.addPreserved<RemoveCFGAliasing>();
+    AU.addPreserved<SplitAfterCall>();
   }
 
   bool InstrumentBasicBlocks::runOnModule(Module &M) {
-    ABS = &getAnalysis<AssignBlockSignatures>();
+    SplitAfterCall &SAC = getAnalysis<SplitAfterCall>();
 
     interFunctionGSR = new GlobalVariable(
         M,

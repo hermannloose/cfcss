@@ -7,6 +7,7 @@
 #define DEBUG_TYPE "cfcss"
 
 #include "AssignBlockSignatures.h"
+
 #include "RemoveCFGAliasing.h"
 #include "SplitAfterCall.h"
 
@@ -34,9 +35,11 @@ namespace cfcss {
 
 
   void AssignBlockSignatures::getAnalysisUsage(AnalysisUsage &AU) const {
-    // TODO(hermannloose): What do we preserve?
-    AU.addRequired<RemoveCFGAliasing>();
-    AU.addRequired<SplitAfterCall>();
+    AU.addRequiredTransitive<RemoveCFGAliasing>();
+    AU.addRequiredTransitive<SplitAfterCall>();
+
+    AU.addPreserved<RemoveCFGAliasing>();
+    AU.addPreserved<SplitAfterCall>();
   }
 
 
@@ -50,8 +53,8 @@ namespace cfcss {
       DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "].\n");
 
       // We don't need the results of these but we need them to run.
-      getAnalysis<RemoveCFGAliasing>(*fi);
-      getAnalysis<SplitAfterCall>(*fi);
+      //RemoveCFGAliasing &RCFGA = getAnalysis<RemoveCFGAliasing>(*fi);
+      //SplitAfterCall &SAC = getAnalysis<SplitAfterCall>(*fi);
 
       DEBUG(errs() << debugPrefix << "Required passes ran for ["
           << fi->getName() << "].\n");

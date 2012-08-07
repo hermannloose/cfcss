@@ -22,58 +22,65 @@ namespace cfcss {
 
   STATISTIC(NumBlocksSplit, "Number of basic blocks split after call instructions");
 
-  SplitAfterCall::SplitAfterCall() : FunctionPass(ID), ignoreBlocks() {}
+  SplitAfterCall::SplitAfterCall() : ModulePass(ID), ignoreBlocks() {}
 
   void SplitAfterCall::getAnalysisUsage(AnalysisUsage &AU) const {
-    // TODO(hermannloose): What do we preserve?
     AU.addPreserved<RemoveCFGAliasing>();
   }
 
-  bool SplitAfterCall::runOnFunction(Function &F) {
-    if (F.isDeclaration()) {
-      DEBUG(errs() << debugPrefix << "Skipping [" << F.getName() << "], is a declaration.\n");
-      return false;
-    }
-
-    DEBUG(errs() << debugPrefix << "Running on [" << F.getName() << "].\n");
+  bool SplitAfterCall::runOnModule(Module &M) {
     bool modifiedCFG = false;
 
-    for (Function::iterator bi = F.begin(), be = F.end(); bi != be; ++bi) {
-      // FIXME(hermannloose): This might not be needed.
-      if (ignoreBlocks.count(bi)) {
+    for (Module::iterator fi = M.begin(), fe = M.end(); fi != fe; ++fi) {
+      if (fi->isDeclaration()) {
+        DEBUG(errs() << debugPrefix << "Skipping [" << fi->getName() << "], is a declaration.\n");
         continue;
       }
 
-      for (BasicBlock::iterator ii = bi->begin(), ie = bi->end(); ii != ie; ++ii) {
-        if (CallInst *callInst = dyn_cast<CallInst>(ii)) {
-          DEBUG(errs() << debugPrefix << "Found CallInst in [" << bi->getName() << "]:\n");
-          DEBUG(ii->dump());
+      DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "].\n");
 
-          if (Function *calledFunction = callInst->getCalledFunction()) {
-            if (!calledFunction->isDeclaration()) {
-              // Don't let our iterator wander off into the split block.
-              BasicBlock::iterator nextInst(ii);
-              ++nextInst;
+      for (Function::iterator bi = fi->begin(), be = fi->end(); bi != be; ++bi) {
+        // FIXME(hermannloose): This might not be needed.
+        if (ignoreBlocks.count(bi)) {
+          continue;
+        }
 
-              llvm::SplitBlock(bi, nextInst, this);
-              ignoreBlocks.insert(bi);
+        for (BasicBlock::iterator ii = bi->begin(), ie = bi->end(); ii != ie; ++ii) {
+          if (CallInst *callInst = dyn_cast<CallInst>(ii)) {
+            DEBUG(errs() << debugPrefix << "Found CallInst in [" << bi->getName() << "]:\n");
+            DEBUG(ii->dump());
 
-              ++NumBlocksSplit;
-              modifiedCFG = true;
+            if (Function *calledFunction = callInst->getCalledFunction()) {
+              if (!calledFunction->isDeclaration()) {
+                // Don't let our iterator wander off into the split block.
+                BasicBlock::iterator nextInst(ii);
+                ++nextInst;
+
+                afterCall.insert(llvm::SplitBlock(bi, nextInst, this));
+                ignoreBlocks.insert(bi);
+
+                ++NumBlocksSplit;
+                modifiedCFG = true;
+              } else {
+                // We won't have signatures for those functions.
+                DEBUG(errs() << debugPrefix << "Called function is a declaration, skipping.\n");
+              }
             } else {
-              // We won't have signatures for those functions.
-              DEBUG(errs() << debugPrefix << "Called function is a declaration, skipping.\n");
+              // We can't handle function pointers, inline assembly, etc.
+              DEBUG(errs() << debugPrefix << "Not a direct function call, skipping.\n");
             }
-          } else {
-            // We can't handle function pointers, inline assembly, etc.
-            DEBUG(errs() << debugPrefix << "Not a direct function call, skipping.\n");
           }
         }
       }
+
+      DEBUG(errs() << debugPrefix << "Finished on [" << fi->getName() << "].\n");
     }
 
-    DEBUG(errs() << debugPrefix << "Finished on [" << F.getName() << "].\n");
     return modifiedCFG;
+  }
+
+  bool SplitAfterCall::wasSplitAfterCall(BasicBlock * const BB) {
+    return afterCall.count(BB);
   }
 
   char SplitAfterCall::ID = 0;

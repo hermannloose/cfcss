@@ -7,13 +7,14 @@
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/Module.h"
 #include "llvm/Pass.h"
 
 using namespace llvm;
 
 namespace cfcss {
 
-  class RemoveCFGAliasing : public FunctionPass {
+  class RemoveCFGAliasing : public ModulePass {
     public:
       typedef SmallPtrSet<BasicBlock*, 32> BlockSet;
       typedef DenseMap<BasicBlock*, BlockSet*> BlockMap;
@@ -23,7 +24,7 @@ namespace cfcss {
       RemoveCFGAliasing();
 
       virtual void getAnalysisUsage(AnalysisUsage &AU) const;
-      virtual bool runOnFunction(Function &F);
+      virtual bool runOnModule(Module &M);
 
     private:
       BlockMap* getAliasingBlocks(BasicBlock *BB);

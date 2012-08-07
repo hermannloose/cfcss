@@ -8,6 +8,8 @@
 
 #include "RemoveCFGAliasing.h"
 
+#include "SplitAfterCall.h"
+
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Instructions.h"
@@ -23,49 +25,53 @@ namespace cfcss {
   STATISTIC(NumAliasingBlocks, "Number of aliasing basic blocks found");
   STATISTIC(NumProxyBlocks, "Number of proxy blocks inserted");
 
-  RemoveCFGAliasing::RemoveCFGAliasing() : FunctionPass(ID) {}
+  RemoveCFGAliasing::RemoveCFGAliasing() : ModulePass(ID) {}
 
-  bool RemoveCFGAliasing::runOnFunction(Function &F) {
-    if (F.isDeclaration()) {
-      DEBUG(errs() << debugPrefix << "Skipping [" << F.getName() << "], is a declaration.\n");
-      return false;
-    }
-
-    DEBUG(errs() << debugPrefix << "Running on [" << F.getName() << "].\n");
+  bool RemoveCFGAliasing::runOnModule(Module &M) {
     bool modifiedCFG = false;
 
-    for (Function::iterator i = F.begin(), e = F.end(); i != e; ++i) {
-      BlockMap *aliasingBlocks = getAliasingBlocks(i);
-      if (aliasingBlocks->size()) {
-        NumAliasingBlocks += aliasingBlocks->size() + 1;
-        // We will modify CFG during this run.
-        modifiedCFG = true;
+    for (Module::iterator fi = M.begin(), fe = M.end(); fi != fe; ++fi) {
+      if (fi->isDeclaration()) {
+        DEBUG(errs() << debugPrefix << "Skipping [" << fi->getName() << "], is a declaration.\n");
+        continue;
       }
 
-      for (BlockMap::iterator via_i = aliasingBlocks->begin(), via_e = aliasingBlocks->end();
-          via_i != via_e; ++via_i) {
+      DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "].\n");
 
-        for (BlockSet::iterator alias_i = via_i->second->begin(), alias_e = via_i->second->end();
-            alias_i != alias_e; ++alias_i) {
-
-          DEBUG(errs() << debugPrefix << "[" << i->getName() << "]\n  ["
-              << (*alias_i)->getName() << "] via ["
-              << via_i->first->getName() << "]\n");
-
-          insertProxyBlock(via_i->first, *alias_i);
-          ++NumProxyBlocks;
+      for (Function::iterator i = fi->begin(), e = fi->end(); i != e; ++i) {
+        BlockMap *aliasingBlocks = getAliasingBlocks(i);
+        if (aliasingBlocks->size()) {
+          NumAliasingBlocks += aliasingBlocks->size() + 1;
+          // We will modify CFG during this run.
+          modifiedCFG = true;
         }
+
+        for (BlockMap::iterator via_i = aliasingBlocks->begin(), via_e = aliasingBlocks->end();
+            via_i != via_e; ++via_i) {
+
+          for (BlockSet::iterator alias_i = via_i->second->begin(), alias_e = via_i->second->end();
+              alias_i != alias_e; ++alias_i) {
+
+            DEBUG(errs() << debugPrefix << "[" << i->getName() << "]\n  ["
+                << (*alias_i)->getName() << "] via ["
+                << via_i->first->getName() << "]\n");
+
+            insertProxyBlock(via_i->first, *alias_i);
+            ++NumProxyBlocks;
+          }
+        }
+
+        delete aliasingBlocks;
       }
 
-      delete aliasingBlocks;
+      DEBUG(errs() << debugPrefix << "Finished on [" << fi->getName() << "].\n");
     }
 
-    DEBUG(errs() << debugPrefix << "Finished on [" << F.getName() << "].\n");
     return modifiedCFG;
   }
 
   void RemoveCFGAliasing::getAnalysisUsage(AnalysisUsage &AU) const {
-    // TODO(hermannloose): What do we preserve?
+    AU.addPreserved<SplitAfterCall>();
   }
 
   RemoveCFGAliasing::BlockMap* RemoveCFGAliasing::getAliasingBlocks(BasicBlock *BB) {
