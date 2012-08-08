@@ -20,9 +20,11 @@ static const char *debugPrefix = "ReturnBlocks: ";
 namespace cfcss {
 
   typedef std::pair<Function*, BlockSet*> ReturnBlocksEntry;
+  typedef std::pair<Function*, BasicBlock*> FunctionToBlockEntry;
 
 
-  ReturnBlocks::ReturnBlocks() : ModulePass(ID), returnBlocks() {}
+  ReturnBlocks::ReturnBlocks() : ModulePass(ID), returnBlocks(),
+      authoritativeReturnBlocks() {}
 
 
   bool ReturnBlocks::runOnModule(Module &M) {
@@ -30,11 +32,18 @@ namespace cfcss {
       BlockSet *returnBlocksInFunction = new BlockSet();
 
       for (Function::iterator i = fi->begin(), e = fi->end(); i != e; ++i) {
+        bool determineAuthoritativeBlock = true;
+
         if (isa<ReturnInst>(i->getTerminator())) {
           DEBUG(errs() << debugPrefix << "[" << i->getName() << "] in [" << fi->getName()
               << "] is a return block.\n");
 
           returnBlocksInFunction->insert(i);
+
+          if (determineAuthoritativeBlock) {
+            authoritativeReturnBlocks.insert(FunctionToBlockEntry(fi, i));
+            determineAuthoritativeBlock = false;
+          }
         }
       }
 
@@ -53,6 +62,12 @@ namespace cfcss {
   BlockSet* ReturnBlocks::getReturnBlocks(Function * const F) {
     return returnBlocks.lookup(F);
   }
+
+
+  BasicBlock* ReturnBlocks::getAuthoritativeReturnBlock(Function * const F) {
+    return authoritativeReturnBlocks.lookup(F);
+  }
+
 
   char ReturnBlocks::ID = 0;
 }
