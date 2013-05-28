@@ -46,6 +46,17 @@ namespace cfcss {
       Instruction* instrumentBlock(BasicBlock &BB, BasicBlock *errorHandlingBlock,
           Instruction *insertBefore);
 
+      Instruction* instrumentAfterCallBlock(BasicBlock &BB, BasicBlock *errorHandlingBlock,
+          Instruction *insertBefore);
+
+      Instruction* insertSignatureUpdate(
+          BasicBlock *BB,
+          BasicBlock *errorHandlingBlock,
+          ConstantInt *signature,
+          ConstantInt *predecessorSignature,
+          bool adjustForFanin,
+          Instruction *insertBefore);
+
       Instruction* insertRuntimeAdjustingSignature(BasicBlock &BB);
 
       GlobalVariable *interFunctionGSR;

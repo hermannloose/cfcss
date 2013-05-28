@@ -57,7 +57,7 @@ namespace cfcss {
         M,
         Type::getInt64Ty(getGlobalContext()),
         false, /* isConstant */
-        GlobalValue::PrivateLinkage,
+        GlobalValue::LinkOnceAnyLinkage,
         ConstantInt::get(Type::getInt64Ty(getGlobalContext()), 0),
         "interFunctionGSR");
 
@@ -80,19 +80,57 @@ namespace cfcss {
           continue;
         }
 
+        if (SAC->wasSplitAfterCall(i)) {
+          Function *calledFunction = SAC->getCalledFunctionForReturnBlock(i);
+          DEBUG(errs() << debugPrefix << "[" << i->getName() << "] was split after call to ["
+              << calledFunction->getName() << "].\n");
+
+          BasicBlock *authoritativeReturnBlock = RB->getAuthoritativeReturnBlock(calledFunction);
+          assert(authoritativeReturnBlock);
+          BlockSet *returnBlocks = RB->getReturnBlocks(calledFunction);
+          assert(authoritativeReturnBlock);
+
+          insertSignatureUpdate(
+              i,
+              errorHandlingBlock,
+              ABS->getSignature(i),
+              ABS->getSignature(authoritativeReturnBlock),
+              (returnBlocks->size() > 1),
+              i->getFirstNonPHI());
+
+        }
+
+        // TODO(hermannloose): Put this towards the end of block processing.
+        if (isa<ReturnInst>(i->getTerminator())) {
+          // TODO(hermannloose): Might need to have D set if more than one.
+          DEBUG(errs() << debugPrefix << "[" << i->getName() << "] is a return block.");
+        }
+
+        /*
         BasicBlock &BB = *i;
         Instruction *insertionPoint = BB.getFirstNonPHI();
 
         instrumentBlock(BB, errorHandlingBlock, insertionPoint);
+        */
 
-        if (ABS->hasFaninSuccessor(&BB)) {
-          DEBUG(errs() << debugPrefix << "[" << BB.getName()
+        if (ABS->hasFaninSuccessor(i)) {
+          DEBUG(errs() << debugPrefix << "[" << i->getName()
               << "] has a fanin successors, setting D.\n");
 
-          insertRuntimeAdjustingSignature(BB);
+          insertRuntimeAdjustingSignature(*i);
         }
 
-        DEBUG(BB.dump());
+        if (SAC->wasSplitAfterCall(i)) {
+          StringRef blockName = i->getName();
+          // TODO(hermannloose): Remove assertion once we know this works?
+          bool merged = MergeBlockIntoPredecessor(i, this);
+          assert(merged);
+          DEBUG(errs() << debugPrefix << "Merged previously split [" << blockName << "]"
+              << "into predecessor after instrumentation.\n");
+
+          // Block is erased from parent after this.
+          continue;
+        }
       }
 
       DEBUG(errs() << debugPrefix << "Run on function " << fi->getName().str() << " complete.\n");
@@ -187,6 +225,85 @@ namespace cfcss {
         errorHandlingBlock,
         compareSignatures,
         &BB);
+
+    return errorHandling;
+  }
+
+
+  Instruction* InstrumentBasicBlocks::instrumentAfterCallBlock(BasicBlock &BB,
+      BasicBlock *errorHandlingBlock, Instruction *insertBefore) {
+
+    return NULL;
+  }
+
+
+  Instruction* InstrumentBasicBlocks::insertSignatureUpdate(
+      BasicBlock *BB,
+      BasicBlock *errorHandlingBlock,
+      ConstantInt *signature,
+      ConstantInt *predecessorSignature,
+      bool adjustForFanin,
+      Instruction *insertBefore) {
+
+    DEBUG(errs() << debugPrefix << "Instrumenting [" << BB->getName() << "]\n");
+
+    // Compute the signature update.
+    ConstantInt *signatureDiff = ConstantInt::get(Type::getInt64Ty(getGlobalContext()),
+        APIntOps::Xor(signature->getValue(), predecessorSignature->getValue()).getLimitedValue());
+
+    LoadInst *loadGSR = new LoadInst(
+        GSR,
+        "GSR",
+        insertBefore);
+
+    BinaryOperator *signatureUpdate = BinaryOperator::Create(
+        Instruction::Xor,
+        loadGSR,
+        signatureDiff,
+        Twine("GSR"),
+        insertBefore);
+
+    if (adjustForFanin) {
+      LoadInst *loadD = new LoadInst(
+          D,
+          "D",
+          insertBefore);
+
+      signatureUpdate = BinaryOperator::Create(
+          Instruction::Xor,
+          signatureUpdate,
+          loadD,
+          Twine("GSR"),
+          insertBefore);
+    }
+
+    StoreInst *storeGSR = new StoreInst(
+        signatureUpdate,
+        GSR,
+        insertBefore);
+
+    ICmpInst *compareSignatures = new ICmpInst(
+        insertBefore,
+        CmpInst::ICMP_EQ,
+        signatureUpdate,
+        signature,
+        "SIGEQ");
+
+    // We branch after the comparison, so we split the block there.
+    BasicBlock::iterator nextInst(compareSignatures);
+    ++nextInst;
+
+    BasicBlock *oldTerminatorBlock = SplitBlock(BB, nextInst, this);
+    ignoreBlocks.insert(oldTerminatorBlock);
+    // TODO(hermannloose): Remove dependency on ABS.
+    ABS->notifyAboutSplitBlock(BB, oldTerminatorBlock);
+
+    BB->getTerminator()->eraseFromParent();
+    BranchInst *errorHandling = BranchInst::Create(
+        oldTerminatorBlock,
+        errorHandlingBlock,
+        compareSignatures,
+        BB);
 
     return errorHandling;
   }

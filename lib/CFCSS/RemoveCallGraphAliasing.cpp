@@ -25,5 +25,5 @@ namespace cfcss {
 }
 
 static RegisterPass<cfcss::RemoveCallGraphAliasing>
-    X("remove-callgraph-aliasing", "Remove call-graph aliasing regarding CFCSS",
+    X("remove-callgraph-aliasing", "Remove call-graph aliasing (CFCSS)",
     false, false);

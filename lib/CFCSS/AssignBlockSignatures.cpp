@@ -152,13 +152,11 @@ namespace cfcss {
 
 
   bool AssignBlockSignatures::isFaninNode(BasicBlock * const BB) {
-    DEBUG(errs() << "Checking whether [" << BB->getName() << "] is a fanin node.\n");
     return faninBlocks.count(BB);
   }
 
 
   bool AssignBlockSignatures::hasFaninSuccessor(BasicBlock * const BB) {
-    DEBUG(errs() << "Checking whether [" << BB->getName() << "] has fanin successors.\n");
     return faninSuccessors.count(BB);
   }
 
