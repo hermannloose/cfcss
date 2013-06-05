@@ -12,7 +12,7 @@
 #include "ReturnBlocks.h"
 
 #include "llvm/ADT/Statistic.h"
-#include "llvm/Instructions.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"

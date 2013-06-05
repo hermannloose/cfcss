@@ -11,7 +11,7 @@
 #include "RemoveCFGAliasing.h"
 #include "SplitAfterCall.h"
 
-#include "llvm/Instructions.h"
+#include "llvm/IR/Instructions.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 

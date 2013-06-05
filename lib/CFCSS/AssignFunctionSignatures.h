@@ -6,8 +6,8 @@
 #pragma once
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/CallGraphSCCPass.h"
-#include "llvm/Constants.h"
+#include "llvm/Analysis/CallGraphSCCPass.h"
+#include "llvm/IR/Constants.h"
 
 using namespace llvm;
 

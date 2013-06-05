@@ -5,7 +5,7 @@
  */
 #pragma once
 
-#include "llvm/CallGraphSCCPass.h"
+#include "llvm/Analysis/CallGraphSCCPass.h"
 
 using namespace llvm;
 
