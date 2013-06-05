@@ -20,6 +20,13 @@ namespace cfcss {
   // FIXME(hermannloose): Remove duplication & is 64 sensible?
   typedef SmallPtrSet<BasicBlock*, 64> BlockSet;
 
+
+  /**
+   * Instrument all basic blocks in a module with signature checks.
+   *
+   * This builds upon the preprocessing and analysis performed in ReturnBlocks,
+   * SplitAfterCall etc. which are scheduled in getAnalysisUsage().
+   */
   class InstrumentBasicBlocks : public ModulePass {
 
     public:
