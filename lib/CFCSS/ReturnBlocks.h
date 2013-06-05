@@ -18,6 +18,11 @@ namespace cfcss {
   typedef DenseMap<Function*, BlockSet*> ReturnBlockMap;
   typedef DenseMap<Function*, BasicBlock*> FunctionToBlockMap;
 
+  /**
+   * Find all basic blocks terminated by a return instruction and keep them for
+   * easy lookup, keyed by function. This also picks an "authoritative" return
+   * block for each function.
+   */
   class ReturnBlocks : public ModulePass {
     public:
       static char ID;
@@ -27,7 +32,15 @@ namespace cfcss {
       virtual void getAnalysisUsage(AnalysisUsage &AU) const;
       virtual bool runOnModule(Module &M);
 
+      /**
+       * Get all basic blocks of the given function that are terminated by
+       * a return instruction.
+       */
       BlockSet* getReturnBlocks(Function * const F);
+
+      /**
+       * Get the authoritative return block of the given function.
+       */
       BasicBlock* getAuthoritativeReturnBlock(Function * const F);
 
     private:

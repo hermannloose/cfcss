@@ -14,6 +14,10 @@ using namespace llvm;
 
 namespace cfcss {
 
+  /**
+   * Remove cases of fanin nodes in the CFG aliasing by inserting proxy blocks
+   * on all offending edges.
+   */
   class RemoveCFGAliasing : public ModulePass {
     public:
       typedef SmallPtrSet<BasicBlock*, 32> BlockSet;
