@@ -119,8 +119,10 @@ namespace cfcss {
           for (pred_iterator pred_i = pred_begin(*succ_i), pred_e = pred_end(*succ_i);
               pred_i != pred_e; ++pred_i) {
 
-            // TODO(hermannloose): Suspected bug for the case of not having all
-            // the nodes in *predecessors as predecessors of *succ_i.
+            // We only check whether the predecessors of succ_i are a subset of
+            // the predecessors of BB. Aliasing does occur in the superset case
+            // as well, which will be detected when running this method on
+            // succ_i later on.
             if (!predecessors->count(*pred_i)) {
               DEBUG(errs() << debugPrefix << "[" << (*pred_i)->getName()
                   << "] is a predecessor of [" << (*succ_i)->getName()
