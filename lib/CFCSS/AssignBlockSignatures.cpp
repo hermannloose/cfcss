@@ -115,7 +115,7 @@ namespace cfcss {
           pred_iterator singlePred = pred_begin(i);
           // If this block won't be touched by later iterations, set its
           // authoritative sibling to itself for uniform treatment.
-          if (!(adjustFor.lookup(*singlePred)) && !(faninSuccessors.count(*singlePred))) {
+          if (!adjustFor.lookup(*singlePred) && !faninSuccessors.count(*singlePred)) {
             DEBUG(errs() << debugPrefix << "[" << i->getName() << "] has no fanin successors.\n");
             adjustFor.insert(BlockEntry(*singlePred, *singlePred));
           }
