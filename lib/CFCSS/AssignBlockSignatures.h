@@ -38,9 +38,6 @@ namespace cfcss {
           BasicBlock * const tail);
 
     private:
-      // FIXME(hermannloose): All this state is maintained across invocations
-      // of runOnFunction(), which LLVM explicitly forbids, although it does
-      // seem to work. Using a ModulePass would be legal and probably nicer.
       SignatureMap blockSignatures;
       SignatureMap signatureUpdateSources;
       BlockMap adjustFor;
