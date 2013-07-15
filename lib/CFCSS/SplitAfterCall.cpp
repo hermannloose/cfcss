@@ -62,7 +62,8 @@ namespace cfcss {
                 BasicBlock::iterator nextInst(ii);
                 ++nextInst;
 
-                // TODO(hermannloose): Suspected bug when encountering multiple
+                // TODO(hermannloose): Verify that the tail of the split block
+                // will always be iterated over, to handle the case of multiple
                 // call instructions in a single basic block.
                 BasicBlock *afterCallBlock = llvm::SplitBlock(bi, nextInst, this);
                 afterCall.insert(afterCallBlock);
