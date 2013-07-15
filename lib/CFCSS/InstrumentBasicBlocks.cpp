@@ -106,13 +106,6 @@ namespace cfcss {
           DEBUG(errs() << debugPrefix << "[" << i->getName() << "] is a return block.");
         }
 
-        /*
-        BasicBlock &BB = *i;
-        Instruction *insertionPoint = BB.getFirstNonPHI();
-
-        instrumentBlock(BB, errorHandlingBlock, insertionPoint);
-        */
-
         if (ABS->hasFaninSuccessor(i)) {
           DEBUG(errs() << debugPrefix << "[" << i->getName()
               << "] has a fanin successors, setting D.\n");
