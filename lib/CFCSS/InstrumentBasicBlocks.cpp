@@ -265,7 +265,6 @@ namespace cfcss {
     ignoreBlocks.insert(errorHandlingBlock);
 
     DEBUG(errs() << debugPrefix << "Created error handling block.\n");
-    DEBUG(errorHandlingBlock->dump());
 
     return errorHandlingBlock;
   }
