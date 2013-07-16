@@ -99,7 +99,16 @@ namespace cfcss {
               i->getFirstNonPHI());
 
         } else {
-          // TODO(hermannloose): Implement signature checks for normal blocks.
+          BasicBlock *authoritativePredecessor = ABS->getAuthoritativePredecessor(i);
+          assert(authoritativePredecessor);
+
+          insertSignatureUpdate(
+              i,
+              errorHandlingBlock,
+              ABS->getSignature(i),
+              ABS->getSignature(authoritativePredecessor),
+              ABS->isFaninNode(i), /* adjustForFanin */
+              i->getFirstNonPHI());
         }
 
         // TODO(hermannloose): Put this towards the end of block processing.
