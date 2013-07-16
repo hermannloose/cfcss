@@ -95,7 +95,7 @@ namespace cfcss {
               errorHandlingBlock,
               ABS->getSignature(i),
               ABS->getSignature(authoritativeReturnBlock),
-              (returnBlocks->size() > 1),
+              (returnBlocks->size() > 1), /* adjustForFanin */
               i->getFirstNonPHI());
 
         } else {
