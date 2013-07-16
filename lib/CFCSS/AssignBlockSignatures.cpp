@@ -18,6 +18,8 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
+#include <random>
+
 static const char *debugPrefix = "AssignBlockSignatures: ";
 
 namespace cfcss {
@@ -27,8 +29,7 @@ namespace cfcss {
       primaryPredecessors(),
       primarySiblings(),
       faninBlocks(),
-      faninSuccessors(),
-      nextID(0) {
+      faninSuccessors() {
   }
 
 
@@ -38,6 +39,12 @@ namespace cfcss {
 
 
   bool AssignBlockSignatures::runOnModule(Module &M) {
+
+    // PRNG for generating unique IDs.
+    std::default_random_engine generator;
+    std::uniform_int_distribution<uint64_t> distribution(0, UINT64_MAX);
+    auto prng = std::bind(distribution, generator);
+
     IntegerType *intType = Type::getInt64Ty(getGlobalContext());
 
     for (Module::iterator fi = M.begin(), fe = M.end(); fi != fe; ++fi) {
@@ -49,7 +56,9 @@ namespace cfcss {
 
       DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "].\n");
 
-      for (Function::iterator bi = fi->begin(), be = fi->end(); bi != be; ++bi, ++nextID) {
+      for (Function::iterator bi = fi->begin(), be = fi->end(); bi != be; ++bi) {
+        uint64_t nextID = prng();
+
         blockSignatures.insert(BlockToSignatureEntry(bi, Signature::get(intType, nextID)));
         bi->setName(Twine("0x") + Twine::utohexstr(nextID) + Twine(": ") + bi->getName());
 

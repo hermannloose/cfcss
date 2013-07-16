@@ -78,7 +78,6 @@ namespace cfcss {
       BlockSet faninBlocks;
       // TODO(hermannloose): Rename this, since it's misleading.
       BlockSet faninSuccessors;
-      unsigned long nextID;
   };
 
 }
