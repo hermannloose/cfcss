@@ -95,7 +95,7 @@ namespace cfcss {
               errorHandlingBlock,
               ABS->getSignature(i),
               ABS->getSignature(authoritativeReturnBlock),
-              (returnBlocks->size() > 1),
+              (returnBlocks->size() > 1), /* adjustForFanin */
               i->getFirstNonPHI());
 
         } else {
@@ -145,82 +145,6 @@ namespace cfcss {
 
     // FIXME(hermannloose): Adapt instrumentation with checking code.
     ignoreBlocks.insert(&entryBlock);
-  }
-
-
-  Instruction* InstrumentBasicBlocks::instrumentBlock(BasicBlock &BB, BasicBlock *errorHandlingBlock,
-      Instruction *insertBefore) {
-
-    DEBUG(errs() << debugPrefix << "Instrumenting [" << BB.getName() << "]\n");
-
-    BasicBlock *authPred = ABS->getAuthoritativePredecessor(&BB);
-    assert(authPred);
-
-    // TODO(hermannloose): Duplication, replace with insertSignatureUpdate().
-
-    // Compute the signature update.
-    ConstantInt* signature = ABS->getSignature(&BB);
-    assert(signature);
-    ConstantInt* pred_signature = ABS->getSignature(authPred);
-    assert(pred_signature);
-    ConstantInt *signatureDiff = ConstantInt::get(Type::getInt64Ty(getGlobalContext()),
-        APIntOps::Xor(signature->getValue(), pred_signature->getValue()).getLimitedValue());
-
-    LoadInst *loadGSR = new LoadInst(
-        GSR,
-        "GSR",
-        insertBefore);
-
-    BinaryOperator *signatureUpdate = BinaryOperator::Create(
-        Instruction::Xor,
-        loadGSR,
-        signatureDiff,
-        Twine("GSR"),
-        insertBefore);
-
-    if (ABS->isFaninNode(&BB)) {
-      LoadInst *loadD = new LoadInst(
-          D,
-          "D",
-          insertBefore);
-
-      signatureUpdate = BinaryOperator::Create(
-          Instruction::Xor,
-          signatureUpdate,
-          loadD,
-          Twine("GSR"),
-          insertBefore);
-    }
-
-    StoreInst *storeGSR = new StoreInst(
-        signatureUpdate,
-        GSR,
-        insertBefore);
-
-    ICmpInst *compareSignatures = new ICmpInst(
-        insertBefore,
-        CmpInst::ICMP_EQ,
-        signatureUpdate,
-        signature,
-        "SIGEQ");
-
-
-    // We branch after the comparison, so we split the block there.
-    BasicBlock::iterator nextInst(compareSignatures);
-    ++nextInst;
-
-    BasicBlock *oldTerminatorBlock = SplitBlock(&BB, nextInst, this);
-    ignoreBlocks.insert(oldTerminatorBlock);
-    ABS->notifyAboutSplitBlock(&BB, oldTerminatorBlock);
-
-    BB.getTerminator()->eraseFromParent();
-    BranchInst *errorHandling = BranchInst::Create(
-        oldTerminatorBlock,
-        errorHandlingBlock,
-        compareSignatures,
-        &BB);
-
-    return errorHandling;
   }
 
 
@@ -341,7 +265,6 @@ namespace cfcss {
     ignoreBlocks.insert(errorHandlingBlock);
 
     DEBUG(errs() << debugPrefix << "Created error handling block.\n");
-    DEBUG(errorHandlingBlock->dump());
 
     return errorHandlingBlock;
   }
