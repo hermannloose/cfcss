@@ -55,13 +55,6 @@ namespace cfcss {
 
       DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "].\n");
 
-      // We don't need the results of these but we need them to run.
-      //RemoveCFGAliasing &RCFGA = getAnalysis<RemoveCFGAliasing>(*fi);
-      //SplitAfterCall &SAC = getAnalysis<SplitAfterCall>(*fi);
-
-      DEBUG(errs() << debugPrefix << "Required passes ran for ["
-          << fi->getName() << "].\n");
-
       for (Function::iterator i = fi->begin(), e = fi->end(); i != e; ++i) {
         blockSignatures.insert(SignatureEntry(i, ConstantInt::get(
             Type::getInt64Ty(getGlobalContext()), nextID)));
