@@ -50,9 +50,6 @@ namespace cfcss {
       void instrumentEntryBlock(BasicBlock &entryBlock);
       BasicBlock* createErrorHandlingBlock(Function *F);
 
-      Instruction* instrumentBlock(BasicBlock &BB, BasicBlock *errorHandlingBlock,
-          Instruction *insertBefore);
-
       Instruction* instrumentAfterCallBlock(BasicBlock &BB, BasicBlock *errorHandlingBlock,
           Instruction *insertBefore);
 
