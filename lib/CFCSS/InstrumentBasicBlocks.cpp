@@ -98,6 +98,8 @@ namespace cfcss {
               (returnBlocks->size() > 1),
               i->getFirstNonPHI());
 
+        } else {
+          // TODO(hermannloose): Implement signature checks for normal blocks.
         }
 
         // TODO(hermannloose): Put this towards the end of block processing.
