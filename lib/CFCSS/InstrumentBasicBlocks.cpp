@@ -98,6 +98,8 @@ namespace cfcss {
               (returnBlocks->size() > 1),
               i->getFirstNonPHI());
 
+        } else {
+          // TODO(hermannloose): Implement signature checks for normal blocks.
         }
 
         // TODO(hermannloose): Put this towards the end of block processing.
@@ -106,30 +108,11 @@ namespace cfcss {
           DEBUG(errs() << debugPrefix << "[" << i->getName() << "] is a return block.");
         }
 
-        /*
-        BasicBlock &BB = *i;
-        Instruction *insertionPoint = BB.getFirstNonPHI();
-
-        instrumentBlock(BB, errorHandlingBlock, insertionPoint);
-        */
-
         if (ABS->hasFaninSuccessor(i)) {
           DEBUG(errs() << debugPrefix << "[" << i->getName()
               << "] has a fanin successors, setting D.\n");
 
           insertRuntimeAdjustingSignature(*i);
-        }
-
-        if (SAC->wasSplitAfterCall(i)) {
-          StringRef blockName = i->getName();
-          // TODO(hermannloose): Remove assertion once we know this works?
-          bool merged = MergeBlockIntoPredecessor(i, this);
-          assert(merged);
-          DEBUG(errs() << debugPrefix << "Merged previously split [" << blockName << "]"
-              << "into predecessor after instrumentation.\n");
-
-          // Block is erased from parent after this.
-          continue;
         }
       }
 
@@ -163,6 +146,8 @@ namespace cfcss {
 
     BasicBlock *authPred = ABS->getAuthoritativePredecessor(&BB);
     assert(authPred);
+
+    // TODO(hermannloose): Duplication, replace with insertSignatureUpdate().
 
     // Compute the signature update.
     ConstantInt* signature = ABS->getSignature(&BB);
@@ -232,6 +217,8 @@ namespace cfcss {
 
   Instruction* InstrumentBasicBlocks::instrumentAfterCallBlock(BasicBlock &BB,
       BasicBlock *errorHandlingBlock, Instruction *insertBefore) {
+
+    // FIXME(hermannloose): Not yet implemented.
 
     return NULL;
   }
