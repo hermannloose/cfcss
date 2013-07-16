@@ -241,6 +241,12 @@ namespace cfcss {
       bool adjustForFanin,
       Instruction *insertBefore) {
 
+    assert(BB);
+    assert(errorHandlingBlock);
+    assert(signature);
+    assert(predecessorSignature);
+    assert(insertBefore);
+
     DEBUG(errs() << debugPrefix << "Instrumenting [" << BB->getName() << "]\n");
 
     // Compute the signature update.
