@@ -147,6 +147,8 @@ namespace cfcss {
     BasicBlock *authPred = ABS->getAuthoritativePredecessor(&BB);
     assert(authPred);
 
+    // TODO(hermannloose): Duplication, replace with insertSignatureUpdate().
+
     // Compute the signature update.
     ConstantInt* signature = ABS->getSignature(&BB);
     assert(signature);
