@@ -112,18 +112,6 @@ namespace cfcss {
 
           insertRuntimeAdjustingSignature(*i);
         }
-
-        if (SAC->wasSplitAfterCall(i)) {
-          StringRef blockName = i->getName();
-          // TODO(hermannloose): Remove assertion once we know this works?
-          bool merged = MergeBlockIntoPredecessor(i, this);
-          assert(merged);
-          DEBUG(errs() << debugPrefix << "Merged previously split [" << blockName << "]"
-              << "into predecessor after instrumentation.\n");
-
-          // Block is erased from parent after this.
-          continue;
-        }
       }
 
       DEBUG(errs() << debugPrefix << "Run on function " << fi->getName().str() << " complete.\n");
