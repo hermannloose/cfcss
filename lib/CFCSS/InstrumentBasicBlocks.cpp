@@ -61,6 +61,14 @@ namespace cfcss {
         ConstantInt::get(Type::getInt64Ty(getGlobalContext()), 0),
         "interFunctionGSR");
 
+    interFunctionD = new GlobalVariable(
+        M,
+        Type::getInt64Ty(getGlobalContext()),
+        false, /* isConstant */
+        GlobalValue::LinkOnceAnyLinkage,
+        ConstantInt::get(Type::getInt64Ty(getGlobalContext()), 0),
+        "interFunctionD");
+
     for (Module::iterator fi = M.begin(), fe = M.end(); fi != fe; ++fi) {
       if (fi->isDeclaration()) {
         DEBUG(errs() << debugPrefix << "Skipping [" << fi->getName() << "], is a declaration.\n");
@@ -141,6 +149,7 @@ namespace cfcss {
 
     LoadInst *loadInterFunctionGSR = new LoadInst(interFunctionGSR, "GSR", insertAlloca);
     new StoreInst(loadInterFunctionGSR, GSR, insertAlloca);
+    LoadInst *loadInterFunctionD = new LoadInst(interFunctionD, "D", insertAlloca);
     new StoreInst(ConstantInt::get(intType, 0), D, insertAlloca);
 
     // FIXME(hermannloose): Adapt instrumentation with checking code.

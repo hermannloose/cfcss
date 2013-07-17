@@ -64,6 +64,7 @@ namespace cfcss {
       Instruction* insertRuntimeAdjustingSignature(BasicBlock &BB);
 
       GlobalVariable *interFunctionGSR;
+      GlobalVariable *interFunctionD;
   };
 
 }
