@@ -183,4 +183,4 @@ namespace cfcss {
 }
 
 static RegisterPass<cfcss::RemoveCFGAliasing>
-    X("remove-cfg-aliasing", "Remove CFG aliasing (CFCSS)", true, true);
+    X("remove-cfg-aliasing", "Remove CFG aliasing (CFCSS)");

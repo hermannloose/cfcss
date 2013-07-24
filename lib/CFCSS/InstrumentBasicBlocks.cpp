@@ -286,4 +286,4 @@ namespace cfcss {
 }
 
 static RegisterPass<cfcss::InstrumentBasicBlocks>
-    X("instrument-blocks", "Instrument basic blocks (CFCSS)", false, false);
+    X("instrument-blocks", "Instrument Basic Blocks (CFCSS)");

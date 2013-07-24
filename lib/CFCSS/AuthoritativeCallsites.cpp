@@ -75,5 +75,4 @@ namespace cfcss {
 }
 
 static RegisterPass<cfcss::AuthoritativeCallsites>
-    X("authoritative-callsites", "Determine authoritative callsites for multiple calls to the same \
-        function, within a function. For use with CFCSS.");
+    X("authoritative-callsites", "Authoritative Call Sites (CFCSS)");

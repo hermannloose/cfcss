@@ -148,4 +148,4 @@ namespace cfcss {
 }
 
 static RegisterPass<cfcss::AssignBlockSignatures>
-    X("assign-block-sigs", "Assign block signatures (CFCSS)", false, true);
+    X("assign-block-signatures", "Assign Block Signatures (CFCSS)");

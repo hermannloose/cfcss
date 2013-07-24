@@ -72,5 +72,4 @@ namespace cfcss {
   char ReturnBlocks::ID = 0;
 }
 
-static RegisterPass<cfcss::ReturnBlocks>
-    X("return-blocks", "Find return blocks for each function (CFCSS)", true, true);
+static RegisterPass<cfcss::ReturnBlocks> X("return-blocks", "Return Blocks (CFCSS)");

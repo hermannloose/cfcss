@@ -148,6 +148,4 @@ namespace cfcss {
   char GatewayFunctions::ID = 0;
 }
 
-static RegisterPass<cfcss::GatewayFunctions>
-    X("gateway-functions", "Create gateways for externally visible functions, for use with CFCSS.",
-        false, true);
+static RegisterPass<cfcss::GatewayFunctions> X("gateway-functions", "Gateway Functions (CFCSS)");

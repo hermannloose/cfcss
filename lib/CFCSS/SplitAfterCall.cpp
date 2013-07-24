@@ -103,5 +103,4 @@ namespace cfcss {
   char SplitAfterCall::ID = 0;
 }
 
-static RegisterPass<cfcss::SplitAfterCall>
-    X("split-after-call", "Split basic blocks after call instructions (CFCSS)", true, true);
+static RegisterPass<cfcss::SplitAfterCall> X("split-after-call", "Split After Call (CFCSS)");
