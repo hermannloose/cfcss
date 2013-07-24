@@ -8,10 +8,6 @@
 
 #include "AssignBlockSignatures.h"
 
-#include "RemoveCFGAliasing.h"
-#include "ReturnBlocks.h"
-#include "SplitAfterCall.h"
-
 #include "llvm/ADT/APInt.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -36,13 +32,7 @@ namespace cfcss {
 
 
   void AssignBlockSignatures::getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.addRequiredTransitive<RemoveCFGAliasing>();
-    AU.addRequiredTransitive<SplitAfterCall>();
-
-    // TODO(hermannloose): AU.setPreservesAll() would probably not hurt.
-    AU.addPreserved<RemoveCFGAliasing>();
-    AU.addPreserved<ReturnBlocks>();
-    AU.addPreserved<SplitAfterCall>();
+    AU.setPreservesAll();
   }
 
 
