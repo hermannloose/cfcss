@@ -98,7 +98,6 @@ namespace cfcss {
           }
         }
 
-        //externalCallers->removeAnyCallEdgeTo(internalNode);
         gatewayToInternal.insert(GatewayToInternalEntry(F, internal));
 
         if (internal->isDeclaration()) {
