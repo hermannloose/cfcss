@@ -8,6 +8,7 @@
 
 #include "GatewayFunctions.h"
 
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/Support/Debug.h"
@@ -40,6 +41,7 @@ namespace cfcss {
 
     CallGraphNode *externalCallers = CG.getExternalCallingNode();
 
+    // Insert gateways for externally callable functions.
     for (CallGraphNode::iterator ci = externalCallers->begin(), ce = externalCallers->end();
         ci != ce; ++ci) {
 
@@ -70,40 +72,44 @@ namespace cfcss {
         DEBUG(errs() << debugPrefix
             << "Creating gateway function for [" << F->getName() << "].\n");
 
-        ValueToValueMapTy vmap;
-        Function *internal = CloneFunction(F, vmap, false);
+        StringRef functionName = F->getName();
 
-        internal->setName(F->getName() + "_internal");
-        internal->setLinkage(GlobalValue::InternalLinkage);
-        M.getFunctionList().push_back(internal);
+        F->setName(functionName + "_cfcss_internal");
+        F->setLinkage(GlobalValue::InternalLinkage);
 
-        CallGraphNode *internalNode = CG.getOrInsertFunction(internal);
+        externalCallers->removeAnyCallEdgeTo(externallyCalled);
 
-        // Add call graph edges for calls in the cloned function.
-        // TODO(hermannloose): Deal with InvokeInst.
-        for (Function::iterator fi = internal->begin(), fe = internal->end(); fi != fe; ++fi) {
-          for (BasicBlock::iterator bi = fi->begin(), be = fi->end(); bi != be; ++bi) {
-            if (CallInst *call = dyn_cast<CallInst>(bi)) {
-              if (Function *calledFunction = call->getCalledFunction()) {
-                if (!calledFunction->isIntrinsic()) {
-                  internalNode->addCalledFunction(CallSite(call), CG[calledFunction]);
-                }
-              } else {
-                DEBUG(errs() << debugPrefix << yellow
-                    << "Not a normal function call, ignoring:\n" << reset);
+        Function *gateway = dyn_cast<Function>(
+            M.getOrInsertFunction(functionName, F->getFunctionType(), F->getAttributes()));
 
-                DEBUG(call->dump());
-              }
-            }
-          }
+        assert(gateway);
+
+        CallGraphNode *gatewayNode = CG.getOrInsertFunction(gateway);
+
+        // TODO(hermannloose): Figure out how to do this in one line.
+        std::vector<Value*> argumentVector;
+        for (Function::arg_iterator ai = gateway->arg_begin(), ae = gateway->arg_end();
+            ai != ae; ++ai) {
+          argumentVector.push_back(ai);
         }
 
-        gatewayToInternal.insert(GatewayToInternalEntry(F, internal));
+        BasicBlock *entry = BasicBlock::Create(getGlobalContext(), "entry", gateway);
+        IRBuilder<> builder(entry);
 
-        if (internal->isDeclaration()) {
-          DEBUG(errs() << debugPrefix << "[" << internal->getName() << "] is a declaration.\n");
+        CallInst *forwardCall = builder.CreateCall(F, ArrayRef<Value*>(argumentVector));
+
+        ReturnInst *forwardReturn = NULL;
+        if (F->getReturnType()->isVoidTy()) {
+          forwardReturn = builder.CreateRetVoid();
+        } else {
+          forwardReturn = builder.CreateRet(forwardCall);
         }
-        assert(!internal->hasExternalLinkage() && "Should have internal linkage.");
+
+        DEBUG(entry->dump());
+
+        gatewayNode->addCalledFunction(CallSite(forwardCall), externallyCalled);
+
+        gatewayToInternal.insert(GatewayToInternalEntry(gateway, F));
 
         modified = true;
       } else {
