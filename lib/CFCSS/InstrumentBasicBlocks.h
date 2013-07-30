@@ -11,6 +11,7 @@
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
@@ -58,9 +59,9 @@ namespace cfcss {
           ConstantInt *signature,
           ConstantInt *predecessorSignature,
           bool adjustForFanin,
-          Instruction *insertBefore);
+          IRBuilder<> *builder);
 
-      Instruction* insertRuntimeAdjustingSignature(BasicBlock &BB, Value *D);
+      Instruction* insertRuntimeAdjustingSignature(BasicBlock &BB, Value *D, IRBuilder<> *builder);
 
       GlobalVariable *interFunctionGSR;
       GlobalVariable *interFunctionD;

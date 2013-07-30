@@ -150,7 +150,9 @@ namespace cfcss {
           DEBUG(errs() << debugPrefix << "[" << i->getName()
               << "] has a fanin successors, setting D.\n");
 
-          insertRuntimeAdjustingSignature(*i, D);
+          builder.SetInsertPoint(i->getTerminator());
+
+          insertRuntimeAdjustingSignature(*i, D, &builder);
         }
       }
 
@@ -231,17 +233,18 @@ namespace cfcss {
   }
 
 
-  Instruction* InstrumentBasicBlocks::insertRuntimeAdjustingSignature(BasicBlock &BB, Value *D) {
+  Instruction* InstrumentBasicBlocks::insertRuntimeAdjustingSignature(BasicBlock &BB, Value *D,
+      IRBuilder<> *builder) {
     // If this is actually our block, we do want to store 0 in D, so
     // there's no special treatment here.
     BasicBlock *authSibling = ABS->getAuthoritativeSibling(&BB);
 
     ConstantInt* signature = ABS->getSignature(&BB);
     ConstantInt* siblingSignature = ABS->getSignature(authSibling);
-    ConstantInt *signatureAdjustment = ConstantInt::get(Type::getInt64Ty(getGlobalContext()),
-      APIntOps::Xor(signature->getValue(), siblingSignature->getValue()).getLimitedValue());
+    ConstantInt *signatureAdjustment = ConstantInt::get(builder->getInt64Ty(),
+        APIntOps::Xor(signature->getValue(), siblingSignature->getValue()).getLimitedValue());
 
-    return new StoreInst(signatureAdjustment, D, BB.getTerminator());
+    return builder->CreateStore(signatureAdjustment, D);
   }
 
 
