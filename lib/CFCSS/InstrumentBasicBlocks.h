@@ -42,9 +42,6 @@ namespace cfcss {
       ReturnBlocks *RB;
       SplitAfterCall *SAC;
 
-      AllocaInst *GSR;
-      AllocaInst *D;
-
       BlockSet ignoreBlocks;
 
       void instrumentEntryBlock(BasicBlock &entryBlock);
@@ -63,7 +60,7 @@ namespace cfcss {
           bool adjustForFanin,
           Instruction *insertBefore);
 
-      Instruction* insertRuntimeAdjustingSignature(BasicBlock &BB);
+      Instruction* insertRuntimeAdjustingSignature(BasicBlock &BB, Value *D);
 
       GlobalVariable *interFunctionGSR;
       GlobalVariable *interFunctionD;

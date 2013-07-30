@@ -19,6 +19,7 @@
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Support/Debug.h"
@@ -79,6 +80,13 @@ namespace cfcss {
       }
 
       DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "].\n");
+      IntegerType *intType = Type::getInt64Ty(getGlobalContext());
+      BasicBlock &entryBlock = fi->getEntryBlock();
+      IRBuilder<> builder(entryBlock.getFirstNonPHI());
+
+      Value *GSR = builder.CreateAlloca(intType, 0, "GSR");
+      Value *D = builder.CreateAlloca(intType, 0, "D");
+
 
       instrumentEntryBlock(fi->getEntryBlock());
       BasicBlock *errorHandlingBlock = createErrorHandlingBlock(fi);
@@ -104,8 +112,8 @@ namespace cfcss {
           insertSignatureUpdate(
               i,
               errorHandlingBlock,
-              this->GSR,
-              this->D,
+              GSR,
+              D,
               ABS->getSignature(i),
               ABS->getSignature(authoritativeReturnBlock),
               (returnBlocks->size() > 1), /* adjustForFanin */
@@ -118,8 +126,8 @@ namespace cfcss {
           insertSignatureUpdate(
               i,
               errorHandlingBlock,
-              this->GSR,
-              this->D,
+              GSR,
+              D,
               ABS->getSignature(i),
               ABS->getSignature(authoritativePredecessor),
               ABS->isFaninNode(i), /* adjustForFanin */
@@ -136,7 +144,7 @@ namespace cfcss {
           DEBUG(errs() << debugPrefix << "[" << i->getName()
               << "] has a fanin successors, setting D.\n");
 
-          insertRuntimeAdjustingSignature(*i);
+          insertRuntimeAdjustingSignature(*i, D);
         }
       }
 
@@ -151,13 +159,8 @@ namespace cfcss {
     IntegerType *intType = Type::getInt64Ty(getGlobalContext());
     Instruction *insertAlloca = entryBlock.getFirstNonPHI();
 
-    GSR = new AllocaInst(intType, "GSR", insertAlloca);
-    D = new AllocaInst(intType, "D", insertAlloca);
-
     LoadInst *loadInterFunctionGSR = new LoadInst(interFunctionGSR, "GSR", insertAlloca);
-    new StoreInst(loadInterFunctionGSR, GSR, insertAlloca);
     LoadInst *loadInterFunctionD = new LoadInst(interFunctionD, "D", insertAlloca);
-    new StoreInst(ConstantInt::get(intType, 0), D, insertAlloca);
 
     // FIXME(hermannloose): Adapt instrumentation with checking code.
     ignoreBlocks.insert(&entryBlock);
@@ -253,7 +256,7 @@ namespace cfcss {
   }
 
 
-  Instruction* InstrumentBasicBlocks::insertRuntimeAdjustingSignature(BasicBlock &BB) {
+  Instruction* InstrumentBasicBlocks::insertRuntimeAdjustingSignature(BasicBlock &BB, Value *D) {
     // If this is actually our block, we do want to store 0 in D, so
     // there's no special treatment here.
     BasicBlock *authSibling = ABS->getAuthoritativeSibling(&BB);
