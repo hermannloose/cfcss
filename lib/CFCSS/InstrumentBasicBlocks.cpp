@@ -75,7 +75,13 @@ namespace cfcss {
 
     for (Module::iterator fi = M.begin(), fe = M.end(); fi != fe; ++fi) {
       if (fi->isDeclaration()) {
-        DEBUG(errs() << debugPrefix << "Skipping [" << fi->getName() << "], is a declaration.\n");
+        DEBUG(errs() << debugPrefix << "Skipping [" << fi->getName() << "] (declaration)\n");
+        continue;
+      }
+
+      if (fi->isIntrinsic()) {
+        DEBUG(errs() << debugPrefix << "Skipping [" << fi->getName() << "] (intrinsic)\n");
+
         continue;
       }
 
