@@ -48,9 +48,6 @@ namespace cfcss {
       void instrumentEntryBlock(BasicBlock &entryBlock);
       BasicBlock* createErrorHandlingBlock(Function *F);
 
-      Instruction* instrumentAfterCallBlock(BasicBlock &BB, BasicBlock *errorHandlingBlock,
-          Instruction *insertBefore);
-
       Instruction* insertSignatureUpdate(
           BasicBlock *BB,
           BasicBlock *errorHandlingBlock,

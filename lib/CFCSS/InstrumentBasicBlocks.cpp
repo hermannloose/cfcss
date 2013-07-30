@@ -181,15 +181,6 @@ namespace cfcss {
   }
 
 
-  Instruction* InstrumentBasicBlocks::instrumentAfterCallBlock(BasicBlock &BB,
-      BasicBlock *errorHandlingBlock, Instruction *insertBefore) {
-
-    // FIXME(hermannloose): Not yet implemented.
-
-    return NULL;
-  }
-
-
   Instruction* InstrumentBasicBlocks::insertSignatureUpdate(
       BasicBlock *BB,
       BasicBlock *errorHandlingBlock,
