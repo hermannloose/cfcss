@@ -158,6 +158,10 @@ namespace cfcss {
     return gatewayToInternal.count(F);
   }
 
+  Function* GatewayFunctions::getInternalFunction(Function * const F) {
+    return gatewayToInternal.lookup(F);
+  }
+
   Function* GatewayFunctions::getAuthoritativePredecessor(Function * const F) {
     return authoritativePredecessors.lookup(F);
   }

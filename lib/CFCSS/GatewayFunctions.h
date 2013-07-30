@@ -34,6 +34,11 @@ namespace cfcss {
       bool isGateway(Function * const F);
 
       /**
+       * Get the internal function that the given gateway call through to.
+       */
+      Function* getInternalFunction(Function * const F);
+
+      /**
        * Get the authoritative predecessor of a function, after gateways have
        * been inserted.
        */
