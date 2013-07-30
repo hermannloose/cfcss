@@ -87,9 +87,10 @@ namespace cfcss {
       Value *GSR = builder.CreateAlloca(intType, 0, "GSR");
       Value *D = builder.CreateAlloca(intType, 0, "D");
 
+      BasicBlock *errorHandlingBlock = createErrorHandlingBlock(fi);
+
 
       instrumentEntryBlock(fi->getEntryBlock());
-      BasicBlock *errorHandlingBlock = createErrorHandlingBlock(fi);
 
       for (Function::iterator i = fi->begin(), e = fi->end(); i != e; ++i) {
         if (ignoreBlocks.count(i)) {
@@ -99,7 +100,12 @@ namespace cfcss {
           continue;
         }
 
+        builder.SetInsertPoint(i->getFirstNonPHI());
+
         if (SAC->wasSplitAfterCall(i)) {
+          builder.CreateStore(builder.CreateLoad(interFunctionGSR, "GSR"), GSR);
+          builder.CreateStore(builder.CreateLoad(interFunctionD, "D"), D);
+
           Function *calledFunction = SAC->getCalledFunctionForReturnBlock(i);
           DEBUG(errs() << debugPrefix << "[" << i->getName() << "] was split after call to ["
               << calledFunction->getName() << "].\n");
@@ -117,7 +123,7 @@ namespace cfcss {
               ABS->getSignature(i),
               ABS->getSignature(authoritativeReturnBlock),
               (returnBlocks->size() > 1), /* adjustForFanin */
-              i->getFirstNonPHI());
+              &builder);
 
         } else {
           BasicBlock *authoritativePredecessor = ABS->getAuthoritativePredecessor(i);
@@ -131,7 +137,7 @@ namespace cfcss {
               ABS->getSignature(i),
               ABS->getSignature(authoritativePredecessor),
               ABS->isFaninNode(i), /* adjustForFanin */
-              i->getFirstNonPHI());
+              &builder);
         }
 
         // TODO(hermannloose): Put this towards the end of block processing.
@@ -184,73 +190,42 @@ namespace cfcss {
       ConstantInt *signature,
       ConstantInt *predecessorSignature,
       bool adjustForFanin,
-      Instruction *insertBefore) {
+      IRBuilder<> *builder) {
 
     assert(BB);
     assert(errorHandlingBlock);
     assert(signature);
     assert(predecessorSignature);
-    assert(insertBefore);
+    assert(builder);
 
     DEBUG(errs() << debugPrefix << "Instrumenting [" << BB->getName() << "]\n");
 
     // Compute the signature update.
-    ConstantInt *signatureDiff = ConstantInt::get(Type::getInt64Ty(getGlobalContext()),
+    ConstantInt *signatureDiff = ConstantInt::get(builder->getInt64Ty(),
         APIntOps::Xor(signature->getValue(), predecessorSignature->getValue()).getLimitedValue());
 
-    LoadInst *loadGSR = new LoadInst(
-        GSR,
-        "GSR",
-        insertBefore);
-
-    BinaryOperator *signatureUpdate = BinaryOperator::Create(
-        Instruction::Xor,
-        loadGSR,
-        signatureDiff,
-        Twine("GSR"),
-        insertBefore);
+    LoadInst *loadGSR = builder->CreateLoad(GSR, "GSR");
+    Value *signatureUpdate = builder->CreateXor(loadGSR, signatureDiff, "GSR");
 
     if (adjustForFanin) {
-      LoadInst *loadD = new LoadInst(
-          D,
-          "D",
-          insertBefore);
-
-      signatureUpdate = BinaryOperator::Create(
-          Instruction::Xor,
-          signatureUpdate,
-          loadD,
-          Twine("GSR"),
-          insertBefore);
+      LoadInst *loadD = builder->CreateLoad(D, "D");
+      signatureUpdate = builder->CreateXor(signatureUpdate, loadD, "GSR");
     }
 
-    StoreInst *storeGSR = new StoreInst(
-        signatureUpdate,
-        GSR,
-        insertBefore);
-
-    ICmpInst *compareSignatures = new ICmpInst(
-        insertBefore,
-        CmpInst::ICMP_EQ,
-        signatureUpdate,
-        signature,
-        "SIGEQ");
+    builder->CreateStore(signatureUpdate, GSR);
+    Value *compareSignatures = builder->CreateICmpEQ(signatureUpdate, signature, "SIGEQ");
 
     // We branch after the comparison, so we split the block there.
-    BasicBlock::iterator nextInst(compareSignatures);
-    ++nextInst;
-
-    BasicBlock *oldTerminatorBlock = SplitBlock(BB, nextInst, this);
+    BasicBlock *oldTerminatorBlock = SplitBlock(BB, builder->GetInsertPoint(), this);
     ignoreBlocks.insert(oldTerminatorBlock);
     // TODO(hermannloose): Remove dependency on ABS.
     ABS->notifyAboutSplitBlock(BB, oldTerminatorBlock);
 
     BB->getTerminator()->eraseFromParent();
-    BranchInst *errorHandling = BranchInst::Create(
-        oldTerminatorBlock,
-        errorHandlingBlock,
-        compareSignatures,
-        BB);
+    builder->SetInsertPoint(BB);
+
+    BranchInst *errorHandling =
+      builder->CreateCondBr(compareSignatures, oldTerminatorBlock, errorHandlingBlock);
 
     return errorHandling;
   }
@@ -276,12 +251,14 @@ namespace cfcss {
         "handleSignatureFault",
         F);
 
-    InlineAsm *ud2 = InlineAsm::get(FunctionType::get(
-        Type::getVoidTy(getGlobalContext()), ArrayRef<Type*>(), false),
-        StringRef("ud2"), StringRef(), true);
+    IRBuilder<> builder(errorHandlingBlock);
 
-    CallInst::Create(ud2, ArrayRef<Value*>(), "", errorHandlingBlock);
-    new UnreachableInst(getGlobalContext(), errorHandlingBlock);
+    InlineAsm *ud2 =
+        InlineAsm::get(FunctionType::get(builder.getVoidTy(), ArrayRef<Type*>(), false),
+            StringRef("ud2"), StringRef(), true);
+
+    builder.CreateCall(ud2);
+    builder.CreateUnreachable();
 
     ignoreBlocks.insert(errorHandlingBlock);
 
