@@ -56,6 +56,8 @@ namespace cfcss {
       Instruction* insertSignatureUpdate(
           BasicBlock *BB,
           BasicBlock *errorHandlingBlock,
+          Value *GSR,
+          Value *D,
           ConstantInt *signature,
           ConstantInt *predecessorSignature,
           bool adjustForFanin,

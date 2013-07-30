@@ -104,6 +104,8 @@ namespace cfcss {
           insertSignatureUpdate(
               i,
               errorHandlingBlock,
+              this->GSR,
+              this->D,
               ABS->getSignature(i),
               ABS->getSignature(authoritativeReturnBlock),
               (returnBlocks->size() > 1), /* adjustForFanin */
@@ -116,6 +118,8 @@ namespace cfcss {
           insertSignatureUpdate(
               i,
               errorHandlingBlock,
+              this->GSR,
+              this->D,
               ABS->getSignature(i),
               ABS->getSignature(authoritativePredecessor),
               ABS->isFaninNode(i), /* adjustForFanin */
@@ -172,6 +176,8 @@ namespace cfcss {
   Instruction* InstrumentBasicBlocks::insertSignatureUpdate(
       BasicBlock *BB,
       BasicBlock *errorHandlingBlock,
+      Value *GSR,
+      Value *D,
       ConstantInt *signature,
       ConstantInt *predecessorSignature,
       bool adjustForFanin,
