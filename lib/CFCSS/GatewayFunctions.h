@@ -33,7 +33,14 @@ namespace cfcss {
        */
       bool isGateway(Function * const F);
 
+      /**
+       * Get the authoritative predecessor of a function, after gateways have
+       * been inserted.
+       */
+      Function* getAuthoritativePredecessor(Function * const F);
+
     private:
+      FunctionMap authoritativePredecessors;
       FunctionMap gatewayToInternal;
   };
 

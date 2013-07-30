@@ -24,9 +24,10 @@ static const char *reset = "\x1b[0m";
 
 namespace cfcss {
 
-  typedef std::pair<Function*, Function*> GatewayToInternalEntry;
+  typedef std::pair<Function*, Function*> FunctionToFunctionEntry;
 
-  GatewayFunctions::GatewayFunctions() : ModulePass(ID), gatewayToInternal() {
+  GatewayFunctions::GatewayFunctions() : ModulePass(ID), authoritativePredecessors(),
+      gatewayToInternal() {
 
   }
 
@@ -63,8 +64,16 @@ namespace cfcss {
         }
 
         if (externallyCalled->getNumReferences() < 2) {
-          DEBUG(errs() << debugPrefix << yellow
-              << "Ignoring [" << F->getName() << "] (no internal callers)\n" << reset);
+          // TODO(hermannloose): This is a dirty hack.
+          // Probably primarily confusing due to the name. Documentation could
+          // make clear, that both gateways and externally visible functions
+          // without internal callers should be instrumented similarly, only
+          // that newly created gateways are proxy functions without any
+          // further instructions.
+          DEBUG(errs() << debugPrefix << "[" << F->getName() << "] has no internal callers, "
+              << "marking as gateway for easier handling.\n" << reset);
+
+          gatewayToInternal.insert(FunctionToFunctionEntry(F, F));
 
           continue;
         }
@@ -109,7 +118,7 @@ namespace cfcss {
 
         gatewayNode->addCalledFunction(CallSite(forwardCall), externallyCalled);
 
-        gatewayToInternal.insert(GatewayToInternalEntry(gateway, F));
+        gatewayToInternal.insert(FunctionToFunctionEntry(gateway, F));
 
         modified = true;
       } else {
@@ -117,24 +126,22 @@ namespace cfcss {
       }
     }
 
+    // Determine authoritative predecessors.
     for (CallGraph::iterator ci = CG.begin(), ce = CG.end(); ci != ce; ++ci) {
-      if (const Function *callerFunction = ci->first) {
-        CallGraphNode *caller = ci->second;
-
+      CallGraphNode *caller = ci->second;
+      if (Function *callerFunction = caller->getFunction()) {
         for (CallGraphNode::iterator callee_i = caller->begin(), callee_e = caller->end();
             callee_i != callee_e; ++callee_i) {
 
           CallGraphNode *callee = callee_i->second;
 
           if (Function *calleeFunction = callee->getFunction()) {
-            if (gatewayToInternal.count(calleeFunction)) {
-              DEBUG(errs() << debugPrefix << callerFunction->getName() << " calling "
-                  << calleeFunction->getName() << " which is a gateway.\n");
+            if (!authoritativePredecessors.count(calleeFunction)) {
+              DEBUG(errs() << debugPrefix << "Setting [" << callerFunction->getName() << "] as "
+                  << "authoritative predecessor of [" << calleeFunction->getName() << "].\n");
 
-              Function *internal = gatewayToInternal.lookup(calleeFunction);
-              CallInst *callSite = dyn_cast<CallInst>(callee_i->first);
-
-              callSite->setCalledFunction(internal);
+              authoritativePredecessors.insert(
+                  FunctionToFunctionEntry(calleeFunction, callerFunction));
             }
           }
         }
@@ -149,6 +156,10 @@ namespace cfcss {
 
   bool GatewayFunctions::isGateway(Function * const F) {
     return gatewayToInternal.count(F);
+  }
+
+  Function* GatewayFunctions::getAuthoritativePredecessor(Function * const F) {
+    return authoritativePredecessors.lookup(F);
   }
 
   char GatewayFunctions::ID = 0;
