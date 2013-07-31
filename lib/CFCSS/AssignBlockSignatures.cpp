@@ -49,8 +49,7 @@ namespace cfcss {
         blockSignatures.insert(SignatureEntry(i, ConstantInt::get(
             Type::getInt64Ty(getGlobalContext()), nextID)));
 
-        DEBUG(errs() << debugPrefix << "[" << i->getName()
-            << "] has signature " << nextID << ".\n");
+        i->setName(Twine("0x") + Twine::utohexstr(nextID) + Twine(": ") + i->getName());
 
         ++nextID;
 
