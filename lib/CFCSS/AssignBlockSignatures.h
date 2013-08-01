@@ -5,18 +5,13 @@
  */
 #pragma once
 
-#include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/SmallPtrSet.h"
-#include "llvm/IR/Constants.h"
+#include "Common.h"
+
 #include "llvm/Pass.h"
 
 using namespace llvm;
 
 namespace cfcss {
-  typedef DenseMap<BasicBlock*, ConstantInt*> SignatureMap;
-  typedef DenseMap<BasicBlock*, BasicBlock*> BlockMap;
-  // TODO(hermannloose): Is 64 a sensible value?
-  typedef SmallPtrSet<BasicBlock*, 64> BlockSet;
 
   /**
    * Assign signatures to every basic block in a module and provide these
@@ -34,7 +29,7 @@ namespace cfcss {
       /**
        * Get the signature of the given basic block, if any.
        */
-      ConstantInt* getSignature(BasicBlock * const BB);
+      Signature* getSignature(BasicBlock * const BB);
 
       /**
        * Check whether the given basic block is a fanin node.
@@ -72,13 +67,12 @@ namespace cfcss {
        *
        * FIXME(hermannloose): This is clumsy and I'm not even sure it's needed.
        */
-      void notifyAboutSplitBlock(BasicBlock * const head,
-          BasicBlock * const tail);
+      void notifyAboutSplitBlock(BasicBlock * const head, BasicBlock * const tail);
 
     private:
-      SignatureMap blockSignatures;
-      SignatureMap signatureUpdateSources;
-      BlockMap adjustFor;
+      BlockToSignatureMap blockSignatures;
+      BlockToSignatureMap signatureUpdateSources;
+      BlockToBlockMap adjustFor;
       BlockSet faninBlocks;
       // TODO(hermannloose): Rename this, since it's misleading.
       BlockSet faninSuccessors;

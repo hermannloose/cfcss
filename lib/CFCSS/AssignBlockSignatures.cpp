@@ -22,9 +22,6 @@ static const char *debugPrefix = "AssignBlockSignatures: ";
 
 namespace cfcss {
 
-  typedef std::pair<BasicBlock*, ConstantInt*> SignatureEntry;
-  typedef std::pair<BasicBlock*, BasicBlock*> BlockEntry;
-
   AssignBlockSignatures::AssignBlockSignatures() :
       ModulePass(ID), blockSignatures(), signatureUpdateSources(),
       adjustFor(), faninBlocks(), faninSuccessors(), nextID(0) {
@@ -46,7 +43,7 @@ namespace cfcss {
       DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "].\n");
 
       for (Function::iterator i = fi->begin(), e = fi->end(); i != e; ++i) {
-        blockSignatures.insert(SignatureEntry(i, ConstantInt::get(
+        blockSignatures.insert(BlockToSignatureEntry(i, Signature::get(
             Type::getInt64Ty(getGlobalContext()), nextID)));
 
         i->setName(Twine("0x") + Twine::utohexstr(nextID) + Twine(": ") + i->getName());
@@ -87,7 +84,7 @@ namespace cfcss {
                     << "] is authoritative predecessor for [" << i->getName() << "].\n");
               }
 
-              adjustFor.insert(BlockEntry(*pred_i, authoritativePredecessor));
+              adjustFor.insert(BlockToBlockEntry(*pred_i, authoritativePredecessor));
               DEBUG(errs() << debugPrefix << "[" << (*pred_i)->getName()
                   << "] will adjust signature for ["
                   << authoritativePredecessor->getName() << "].\n");
@@ -99,7 +96,7 @@ namespace cfcss {
           // authoritative sibling to itself for uniform treatment.
           if (!adjustFor.lookup(*singlePred) && !faninSuccessors.count(*singlePred)) {
             DEBUG(errs() << debugPrefix << "[" << i->getName() << "] has no fanin successors.\n");
-            adjustFor.insert(BlockEntry(*singlePred, *singlePred));
+            adjustFor.insert(BlockToBlockEntry(*singlePred, *singlePred));
           }
         }
       }
@@ -111,7 +108,7 @@ namespace cfcss {
   }
 
 
-  ConstantInt* AssignBlockSignatures::getSignature(BasicBlock * const BB) {
+  Signature* AssignBlockSignatures::getSignature(BasicBlock * const BB) {
     return blockSignatures.lookup(BB);
   }
 
@@ -129,7 +126,7 @@ namespace cfcss {
   void AssignBlockSignatures::notifyAboutSplitBlock(BasicBlock * const head,
       BasicBlock * const tail) {
 
-    adjustFor.insert(BlockEntry(tail, adjustFor.lookup(head)));
+    adjustFor.insert(BlockToBlockEntry(tail, adjustFor.lookup(head)));
   }
 
 
