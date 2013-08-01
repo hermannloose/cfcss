@@ -119,7 +119,7 @@ namespace cfcss {
           BasicBlock *authoritativeReturnBlock = RB->getAuthoritativeReturnBlock(calledFunction);
           assert(authoritativeReturnBlock);
           BlockSet *returnBlocks = RB->getReturnBlocks(calledFunction);
-          assert(authoritativeReturnBlock);
+          assert(returnBlocks);
 
           insertSignatureUpdate(
               i,
