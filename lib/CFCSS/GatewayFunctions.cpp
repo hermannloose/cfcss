@@ -24,10 +24,8 @@ static const char *reset = "\x1b[0m";
 
 namespace cfcss {
 
-  typedef std::pair<Function*, Function*> FunctionToFunctionEntry;
-
   GatewayFunctions::GatewayFunctions() : ModulePass(ID), authoritativePredecessors(),
-      gatewayToInternal() {
+      gatewayToInternal(), faninNodes() {
 
   }
 
@@ -145,6 +143,10 @@ namespace cfcss {
             }
           }
         }
+
+        if (caller->getNumReferences() > 1) {
+          faninNodes.insert(callerFunction);
+        }
       } else {
         DEBUG(errs() << debugPrefix << yellow
             << "Ignoring call graph node without function.\n" << reset);
@@ -164,6 +166,10 @@ namespace cfcss {
 
   Function* GatewayFunctions::getAuthoritativePredecessor(Function * const F) {
     return authoritativePredecessors.lookup(F);
+  }
+
+  bool GatewayFunctions::isFaninNode(Function * const F) {
+    return faninNodes.count(F);
   }
 
   char GatewayFunctions::ID = 0;

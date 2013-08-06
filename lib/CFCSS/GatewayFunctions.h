@@ -5,16 +5,14 @@
  */
 #pragma once
 
-#include "llvm/ADT/DenseMap.h"
-#include "llvm/IR/Constants.h"
+#include "Common.h"
+
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
 using namespace llvm;
 
 namespace cfcss {
-
-  typedef DenseMap<Function*, Function*> FunctionMap;
 
   /**
    * TODO(hermannloose): Document this.
@@ -44,9 +42,15 @@ namespace cfcss {
        */
       Function* getAuthoritativePredecessor(Function * const F);
 
+      /**
+       * Check whether the given function is a fanin node.
+       */
+      bool isFaninNode(Function * const F);
+
     private:
-      FunctionMap authoritativePredecessors;
-      FunctionMap gatewayToInternal;
+      FunctionToFunctionMap authoritativePredecessors;
+      FunctionToFunctionMap gatewayToInternal;
+      FunctionSet faninNodes;
   };
 
 }
