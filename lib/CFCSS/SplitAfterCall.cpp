@@ -8,10 +8,13 @@
 
 #include "SplitAfterCall.h"
 
+#include "AuthoritativeCallsites.h"
+#include "GatewayFunctions.h"
 #include "RemoveCFGAliasing.h"
 #include "ReturnBlocks.h"
 
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/CallGraph.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
@@ -30,8 +33,11 @@ namespace cfcss {
 
   void SplitAfterCall::getAnalysisUsage(AnalysisUsage &AU) const {
     // TODO(hermannloose): AU.setPreservesAll() would probably not hurt.
+    AU.addPreserved<CallGraph>();
+    AU.addPreserved<GatewayFunctions>();
     AU.addPreserved<RemoveCFGAliasing>();
     AU.addPreserved<ReturnBlocks>();
+    AU.addPreserved<AuthoritativeCallsites>();
   }
 
   bool SplitAfterCall::runOnModule(Module &M) {
