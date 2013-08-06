@@ -23,8 +23,12 @@ namespace cfcss {
   typedef llvm::DenseMap<llvm::BasicBlock*, llvm::Function*> BlockToFunctionMap;
   typedef llvm::DenseMap<llvm::BasicBlock*, Signature*> BlockToSignatureMap;
 
+  typedef std::pair<llvm::BasicBlock*, llvm::BasicBlock*> BlockToBlockEntry;
+  typedef std::pair<llvm::BasicBlock*, llvm::Function*> BlockToFunctionEntry;
+  typedef std::pair<llvm::BasicBlock*, Signature*> BlockToSignatureEntry;
+
   typedef llvm::DenseMap<llvm::Function*, BlockSet*> FunctionToBlockSetMap;
   typedef llvm::DenseMap<llvm::Function*, llvm::Function*> FunctionToFunctionMap;
-  typedef llvm::DenseMap<llvm::Function*, Signature*> FunctionToSignatureMap;
 
+  typedef std::pair<llvm::Function*, llvm::Function*> FunctionToFunctionEntry;
 }
