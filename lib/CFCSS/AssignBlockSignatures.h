@@ -71,8 +71,10 @@ namespace cfcss {
 
     private:
       BlockToSignatureMap blockSignatures;
-      BlockToSignatureMap signatureUpdateSources;
-      BlockToBlockMap adjustFor;
+
+      BlockToBlockMap primaryPredecessors;
+      BlockToBlockMap primarySiblings;
+
       BlockSet faninBlocks;
       // TODO(hermannloose): Rename this, since it's misleading.
       BlockSet faninSuccessors;
