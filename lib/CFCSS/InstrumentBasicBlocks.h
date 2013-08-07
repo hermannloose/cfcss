@@ -8,7 +8,6 @@
 #include "AssignBlockSignatures.h"
 #include "GatewayFunctions.h"
 #include "InstructionIndex.h"
-#include "ReturnBlocks.h"
 #include "SplitAfterCall.h"
 
 #include "llvm/ADT/SmallPtrSet.h"
@@ -44,7 +43,6 @@ namespace cfcss {
       AssignBlockSignatures *ABS;
       GatewayFunctions *GF;
       InstructionIndex *II;
-      ReturnBlocks *RB;
       SplitAfterCall *SAC;
 
       BlockSet ignoreBlocks;

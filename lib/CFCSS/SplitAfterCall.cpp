@@ -8,10 +8,8 @@
 
 #include "SplitAfterCall.h"
 
-#include "AuthoritativeCallsites.h"
 #include "GatewayFunctions.h"
 #include "RemoveCFGAliasing.h"
-#include "ReturnBlocks.h"
 
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/CallGraph.h"
@@ -36,8 +34,6 @@ namespace cfcss {
     AU.addPreserved<CallGraph>();
     AU.addPreserved<GatewayFunctions>();
     AU.addPreserved<RemoveCFGAliasing>();
-    AU.addPreserved<ReturnBlocks>();
-    AU.addPreserved<AuthoritativeCallsites>();
   }
 
   bool SplitAfterCall::runOnModule(Module &M) {
