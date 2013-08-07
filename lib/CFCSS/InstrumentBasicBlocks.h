@@ -6,6 +6,8 @@
 #pragma once
 
 #include "AssignBlockSignatures.h"
+#include "GatewayFunctions.h"
+#include "InstructionIndex.h"
 #include "ReturnBlocks.h"
 #include "SplitAfterCall.h"
 
@@ -40,15 +42,16 @@ namespace cfcss {
 
     private:
       AssignBlockSignatures *ABS;
+      GatewayFunctions *GF;
+      InstructionIndex *II;
       ReturnBlocks *RB;
       SplitAfterCall *SAC;
 
       BlockSet ignoreBlocks;
 
-      void instrumentEntryBlock(BasicBlock &entryBlock);
       BasicBlock* createErrorHandlingBlock(Function *F);
 
-      Instruction* insertSignatureUpdate(
+      BasicBlock* insertSignatureUpdate(
           BasicBlock *BB,
           BasicBlock *errorHandlingBlock,
           Value *GSR,
