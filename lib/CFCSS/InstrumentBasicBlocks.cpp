@@ -9,6 +9,7 @@
 #include "InstrumentBasicBlocks.h"
 
 #include "AssignBlockSignatures.h"
+#include "GatewayFunctions.h"
 #include "RemoveCFGAliasing.h"
 #include "SplitAfterCall.h"
 
@@ -18,6 +19,7 @@
 #include "llvm/IR/GlobalVariable.h"
 #include "llvm/IR/InlineAsm.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/Support/CFG.h"
 #include "llvm/Support/Debug.h"
@@ -36,216 +38,332 @@ namespace cfcss {
 
 
   void InstrumentBasicBlocks::getAnalysisUsage(AnalysisUsage &AU) const {
-    AU.addRequiredTransitive<AssignBlockSignatures>();
-    AU.addRequiredTransitive<ReturnBlocks>();
+    AU.addRequiredTransitive<GatewayFunctions>();
     AU.addRequiredTransitive<SplitAfterCall>();
+    AU.addRequiredTransitive<RemoveCFGAliasing>();
+    AU.addRequiredTransitive<AssignBlockSignatures>();
+    AU.addRequiredTransitive<InstructionIndex>();
 
     // TODO(hermannloose): AU.setPreservesAll() would probably not hurt.
     AU.addPreserved<AssignBlockSignatures>();
+    AU.addPreserved<GatewayFunctions>();
     AU.addPreserved<RemoveCFGAliasing>();
-    AU.addPreserved<ReturnBlocks>();
     AU.addPreserved<SplitAfterCall>();
+    AU.addPreserved<InstructionIndex>();
   }
 
 
   bool InstrumentBasicBlocks::runOnModule(Module &M) {
-    ABS = &getAnalysis<AssignBlockSignatures>();
-    RB = &getAnalysis<ReturnBlocks>();
+    GF = &getAnalysis<GatewayFunctions>();
+    II = &getAnalysis<InstructionIndex>();
     SAC = &getAnalysis<SplitAfterCall>();
+    RemoveCFGAliasing *RCA = &getAnalysis<RemoveCFGAliasing>();
+    ABS = &getAnalysis<AssignBlockSignatures>();
+
+    IntegerType *intType = Type::getInt64Ty(getGlobalContext());
 
     interFunctionGSR = new GlobalVariable(
         M,
-        Type::getInt64Ty(getGlobalContext()),
+        intType,
         false, /* isConstant */
         GlobalValue::LinkOnceAnyLinkage,
-        ConstantInt::get(Type::getInt64Ty(getGlobalContext()), 0),
+        ConstantInt::get(intType, 0),
         "interFunctionGSR");
+
+    interFunctionD = new GlobalVariable(
+        M,
+        intType,
+        false, /* isConstant */
+        GlobalValue::LinkOnceAnyLinkage,
+        ConstantInt::get(intType, 0),
+        "interFunctionD");
 
     for (Module::iterator fi = M.begin(), fe = M.end(); fi != fe; ++fi) {
       if (fi->isDeclaration()) {
-        DEBUG(errs() << debugPrefix << "Skipping [" << fi->getName() << "], is a declaration.\n");
+        DEBUG(errs() << debugPrefix << "Skipping [" << fi->getName() << "] (declaration)\n");
+        continue;
+      }
+
+      if (fi->isIntrinsic()) {
+        DEBUG(errs() << debugPrefix << "Skipping [" << fi->getName() << "] (intrinsic)\n");
+
         continue;
       }
 
       DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "].\n");
 
-      instrumentEntryBlock(fi->getEntryBlock());
+      // Initialize CFCSS "registers", i.e. local variables.
+
+      BasicBlock *entryBlock = &fi->getEntryBlock();
+      IRBuilder<> builder(entryBlock->getFirstNonPHI());
+
+      Value *GSR = builder.CreateAlloca(intType, 0, "GSR");
+      Value *D = builder.CreateAlloca(intType, 0, "D");
+
+      builder.CreateStore(ConstantInt::get(intType, 0), GSR);
+      builder.CreateStore(ConstantInt::get(intType, 0), D);
+
       BasicBlock *errorHandlingBlock = createErrorHandlingBlock(fi);
 
-      for (Function::iterator i = fi->begin(), e = fi->end(); i != e; ++i) {
-        if (ignoreBlocks.count(i)) {
-          DEBUG(errs() << debugPrefix << "Ignoring [" << i->getName() << "].\n");
-          // Ignore the remainders of previously split blocks, as well as the
-          // entry block, which is handled separately.
-          continue;
+      DEBUG(errs() << debugPrefix << "Instrumenting entry block.\n");
+
+      // TODO(hermannloose): Maybe delegate to two functions for this.
+      if (GF->isGateway(fi)) {
+        DEBUG(errs() << debugPrefix << "(is a gateway)\n");
+
+        Signature *signature = ABS->getSignature(entryBlock);
+        builder.CreateStore(signature, GSR);
+
+        Function *internal = GF->getInternalFunction(fi);
+        if (GF->isFaninNode(internal)) {
+          // TODO(hermannloose): Duplication below, factor out.
+          Function *authoritativePredecessor = GF->getAuthoritativePredecessor(internal);
+          CallInst *callSite = II->getPrimaryCallTo(internal, authoritativePredecessor);
+          assert(callSite && "Function should have an authoritative call site!");
+          BasicBlock *callingBlock = callSite->getParent();
+          assert(callingBlock && "Call site should be part of a basic block!");
+          Signature *predecessorSignature = ABS->getSignature(callingBlock);
+
+          ConstantInt *signatureAdjustment = ConstantInt::get(getGlobalContext(),
+              APIntOps::Xor(signature->getValue(), predecessorSignature->getValue()));
+
+          builder.CreateStore(signatureAdjustment, D);
         }
+      } else {
+        DEBUG(errs() << debugPrefix << "(is a normal function)\n");
 
-        if (SAC->wasSplitAfterCall(i)) {
-          Function *calledFunction = SAC->getCalledFunctionForReturnBlock(i);
-          DEBUG(errs() << debugPrefix << "[" << i->getName() << "] was split after call to ["
-              << calledFunction->getName() << "].\n");
+        Function *authoritativePredecessor = GF->getAuthoritativePredecessor(fi);
+        assert(authoritativePredecessor && "Function should have an authoritative predecessor!");
+        CallInst *callSite = II->getPrimaryCallTo(fi, authoritativePredecessor);
+        assert(callSite && "Function should have an authoritative call site!");
+        BasicBlock *callingBlock = callSite->getParent();
+        assert(callingBlock && "Call site should be part of a basic block!");
 
-          BasicBlock *authoritativeReturnBlock = RB->getAuthoritativeReturnBlock(calledFunction);
-          assert(authoritativeReturnBlock);
-          BlockSet *returnBlocks = RB->getReturnBlocks(calledFunction);
-          assert(authoritativeReturnBlock);
+        DEBUG(errs() << debugPrefix << "Authoritative call site: [" << callingBlock->getName()
+            << "] in [" << authoritativePredecessor->getName() << "].\n");
 
-          insertSignatureUpdate(
-              i,
-              errorHandlingBlock,
-              ABS->getSignature(i),
-              ABS->getSignature(authoritativeReturnBlock),
-              (returnBlocks->size() > 1), /* adjustForFanin */
-              i->getFirstNonPHI());
+        ConstantInt *predecessorSignature = ABS->getSignature(callingBlock);
+        assert(predecessorSignature && "Calling basic block should have a signature!");
 
-        } else {
-          BasicBlock *authoritativePredecessor = ABS->getAuthoritativePredecessor(i);
-          assert(authoritativePredecessor);
+        DEBUG(errs() << debugPrefix << "Authoritative predecessor signature: "
+            << predecessorSignature->getValue() << "\n");
 
-          insertSignatureUpdate(
-              i,
-              errorHandlingBlock,
-              ABS->getSignature(i),
-              ABS->getSignature(authoritativePredecessor),
-              ABS->isFaninNode(i), /* adjustForFanin */
-              i->getFirstNonPHI());
-        }
+        builder.CreateStore(builder.CreateLoad(interFunctionGSR, "GSR"), GSR);
+        builder.CreateStore(builder.CreateLoad(interFunctionD, "D"), D);
 
-        // TODO(hermannloose): Put this towards the end of block processing.
-        if (isa<ReturnInst>(i->getTerminator())) {
-          // TODO(hermannloose): Might need to have D set if more than one.
-          DEBUG(errs() << debugPrefix << "[" << i->getName() << "] is a return block.");
-        }
+        BasicBlock *entryBlockRemainder = insertSignatureUpdate(
+            entryBlock,
+            errorHandlingBlock,
+            GSR,
+            D,
+            ABS->getSignature(entryBlock),
+            predecessorSignature,
+            GF->isFaninNode(fi), /* adjustForFanin */
+            &builder);
 
-        if (ABS->hasFaninSuccessor(i)) {
-          DEBUG(errs() << debugPrefix << "[" << i->getName()
-              << "] has a fanin successors, setting D.\n");
-
-          insertRuntimeAdjustingSignature(*i);
+        // TODO(hermannloose): Move somewhere else, this stuff is all over the
+        // place.
+        if (ABS->hasFaninSuccessor(entryBlock)) {
+          builder.SetInsertPoint(entryBlockRemainder->getTerminator());
+          insertRuntimeAdjustingSignature(*entryBlockRemainder, D, &builder);
         }
       }
 
-      DEBUG(errs() << debugPrefix << "Run on function " << fi->getName().str() << " complete.\n");
+      ignoreBlocks.insert(entryBlock);
+
+      DEBUG(errs() << debugPrefix << "Instrumenting basic blocks.\n");
+
+      for (Function::iterator bi = fi->begin(), be = fi->end(); bi != be; ++bi) {
+        if (ignoreBlocks.count(bi)) {
+          DEBUG(errs() << debugPrefix << "Ignoring [" << bi->getName() << "].\n");
+
+          // Ignore the remainders of previously split blocks.
+          continue;
+        }
+
+        builder.SetInsertPoint(bi->getFirstNonPHI());
+
+        BasicBlock *remainder = NULL;
+
+        if (SAC->wasSplitAfterCall(bi)) {
+          // Check for a valid control flow transfer from one of the return
+          // blocks of the function that was called from the basic block
+          // preceding the current one.
+          builder.CreateStore(builder.CreateLoad(interFunctionGSR, "GSR"), GSR);
+          builder.CreateStore(builder.CreateLoad(interFunctionD, "D"), D);
+
+          Function *calledFunction = SAC->getCalledFunctionForReturnBlock(bi);
+
+          DEBUG(errs() << debugPrefix << "[" << bi->getName() << "] was split after call to ["
+              << calledFunction->getName() << "].\n");
+
+          ReturnInst *primaryReturn = II->getPrimaryReturn(calledFunction);
+          BasicBlock *authoritativeReturnBlock = primaryReturn->getParent();
+          assert(authoritativeReturnBlock);
+          ReturnList *returns = II->getReturns(calledFunction);
+          assert(returns);
+
+          remainder = insertSignatureUpdate(
+              bi,
+              errorHandlingBlock,
+              GSR,
+              D,
+              ABS->getSignature(bi),
+              ABS->getSignature(authoritativeReturnBlock),
+              (returns->size() > 1), /* adjustForFanin */
+              &builder);
+
+        } else {
+          // Check for a valid control flow transfer from one of the
+          // predecessors of the current basic block.
+          BasicBlock *authoritativePredecessor = ABS->getAuthoritativePredecessor(bi);
+          assert(authoritativePredecessor);
+
+          remainder = insertSignatureUpdate(
+              bi,
+              errorHandlingBlock,
+              GSR,
+              D,
+              ABS->getSignature(bi),
+              ABS->getSignature(authoritativePredecessor),
+              ABS->isFaninNode(bi), /* adjustForFanin */
+              &builder);
+        }
+
+        builder.SetInsertPoint(remainder->getTerminator());
+
+        if (ABS->hasFaninSuccessor(bi)) {
+          DEBUG(errs() << debugPrefix << "[" << bi->getName()
+              << "] has a fanin successors, setting D.\n");
+
+          insertRuntimeAdjustingSignature(*remainder, D, &builder);
+        }
+      }
+
+      DEBUG(errs() << debugPrefix << "Instrumenting call sites.\n");
+
+      CallList *calls = II->getCalls(fi);
+      for (CallList::iterator ci = calls->begin(), ce = calls->end(); ci != ce; ++ci) {
+        CallInst *callInst = *ci;
+        Function *callee = callInst->getCalledFunction();
+
+        builder.SetInsertPoint(callInst);
+        builder.CreateStore(builder.CreateLoad(GSR, "GSR"), interFunctionGSR);
+
+        if (GF->isFaninNode(callee)) {
+          // Set runtime adjusting signature.
+          // TODO(hermannloose): Factor out.
+          Function *authoritativePredecessor = GF->getAuthoritativePredecessor(callee);
+          CallInst *primaryCall = II->getPrimaryCallTo(callee, authoritativePredecessor);
+
+          Signature *sigA = ABS->getSignature(callInst->getParent());
+          Signature *sigB = ABS->getSignature(primaryCall->getParent());
+          Signature *signatureAdjustment = Signature::get(getGlobalContext(),
+              APIntOps::Xor(sigA->getValue(), sigB->getValue()));
+
+          builder.CreateStore(signatureAdjustment, interFunctionD);
+        }
+      }
+
+      DEBUG(errs() << debugPrefix << "Instrumenting return blocks.\n");
+
+      if (GF->isGateway(fi)) {
+        ReturnInst *returnInst = II->getPrimaryReturn(fi);
+
+        builder.SetInsertPoint(returnInst);
+
+        builder.CreateStore(ConstantInt::get(intType, 0), interFunctionGSR);
+        builder.CreateStore(ConstantInt::get(intType, 0), interFunctionD);
+      } else {
+        ReturnInst *primaryReturn = II->getPrimaryReturn(fi);
+        ConstantInt *sigA = ABS->getSignature(primaryReturn->getParent());
+
+        ReturnList *returns = II->getReturns(fi);
+        for (ReturnList::iterator ri = returns->begin(), re = returns->end(); ri != re; ++ri) {
+          ConstantInt *sigB = ABS->getSignature((*ri)->getParent());
+          ConstantInt *signatureAdjustment = ConstantInt::get(getGlobalContext(),
+              APIntOps::Xor(sigA->getValue(), sigB->getValue()));
+
+          DEBUG(errs() << debugPrefix << "D = " << signatureAdjustment->getValue()
+              << " (" << sigA->getValue() << " xor " << sigB->getValue() << ")\n");
+
+          builder.SetInsertPoint(*ri);
+          builder.CreateStore(builder.CreateLoad(GSR, "GSR"), interFunctionGSR);
+          builder.CreateStore(signatureAdjustment, interFunctionD);
+        }
+      }
+
+      DEBUG(errs() << debugPrefix << "Run on function [" << fi->getName() << "] complete.\n");
     }
 
     return true;
   }
 
 
-  void InstrumentBasicBlocks::instrumentEntryBlock(BasicBlock &entryBlock) {
-    IntegerType *intType = Type::getInt64Ty(getGlobalContext());
-    Instruction *insertAlloca = entryBlock.getFirstNonPHI();
-
-    GSR = new AllocaInst(intType, "GSR", insertAlloca);
-    D = new AllocaInst(intType, "D", insertAlloca);
-
-    LoadInst *loadInterFunctionGSR = new LoadInst(interFunctionGSR, "GSR", insertAlloca);
-    new StoreInst(loadInterFunctionGSR, GSR, insertAlloca);
-    new StoreInst(ConstantInt::get(intType, 0), D, insertAlloca);
-
-    // FIXME(hermannloose): Adapt instrumentation with checking code.
-    ignoreBlocks.insert(&entryBlock);
-  }
-
-
-  Instruction* InstrumentBasicBlocks::instrumentAfterCallBlock(BasicBlock &BB,
-      BasicBlock *errorHandlingBlock, Instruction *insertBefore) {
-
-    // FIXME(hermannloose): Not yet implemented.
-
-    return NULL;
-  }
-
-
-  Instruction* InstrumentBasicBlocks::insertSignatureUpdate(
+  BasicBlock* InstrumentBasicBlocks::insertSignatureUpdate(
       BasicBlock *BB,
       BasicBlock *errorHandlingBlock,
+      Value *GSR,
+      Value *D,
       ConstantInt *signature,
       ConstantInt *predecessorSignature,
       bool adjustForFanin,
-      Instruction *insertBefore) {
+      IRBuilder<> *builder) {
 
     assert(BB);
     assert(errorHandlingBlock);
     assert(signature);
     assert(predecessorSignature);
-    assert(insertBefore);
+    assert(builder);
 
     DEBUG(errs() << debugPrefix << "Instrumenting [" << BB->getName() << "]\n");
 
     // Compute the signature update.
-    ConstantInt *signatureDiff = ConstantInt::get(Type::getInt64Ty(getGlobalContext()),
-        APIntOps::Xor(signature->getValue(), predecessorSignature->getValue()).getLimitedValue());
+    ConstantInt *signatureDiff = ConstantInt::get(getGlobalContext(),
+        APIntOps::Xor(signature->getValue(), predecessorSignature->getValue()));
 
-    LoadInst *loadGSR = new LoadInst(
-        GSR,
-        "GSR",
-        insertBefore);
-
-    BinaryOperator *signatureUpdate = BinaryOperator::Create(
-        Instruction::Xor,
-        loadGSR,
-        signatureDiff,
-        Twine("GSR"),
-        insertBefore);
+    LoadInst *loadGSR = builder->CreateLoad(GSR, "GSR");
+    Value *signatureUpdate = builder->CreateXor(loadGSR, signatureDiff, "GSR");
 
     if (adjustForFanin) {
-      LoadInst *loadD = new LoadInst(
-          D,
-          "D",
-          insertBefore);
-
-      signatureUpdate = BinaryOperator::Create(
-          Instruction::Xor,
-          signatureUpdate,
-          loadD,
-          Twine("GSR"),
-          insertBefore);
+      LoadInst *loadD = builder->CreateLoad(D, "D");
+      signatureUpdate = builder->CreateXor(signatureUpdate, loadD, "GSR");
     }
 
-    StoreInst *storeGSR = new StoreInst(
-        signatureUpdate,
-        GSR,
-        insertBefore);
-
-    ICmpInst *compareSignatures = new ICmpInst(
-        insertBefore,
-        CmpInst::ICMP_EQ,
-        signatureUpdate,
-        signature,
-        "SIGEQ");
+    builder->CreateStore(signatureUpdate, GSR);
+    Value *compareSignatures = builder->CreateICmpEQ(signatureUpdate, signature, "SIGEQ");
 
     // We branch after the comparison, so we split the block there.
-    BasicBlock::iterator nextInst(compareSignatures);
-    ++nextInst;
-
-    BasicBlock *oldTerminatorBlock = SplitBlock(BB, nextInst, this);
+    BasicBlock *oldTerminatorBlock = SplitBlock(BB, builder->GetInsertPoint(), this);
     ignoreBlocks.insert(oldTerminatorBlock);
     // TODO(hermannloose): Remove dependency on ABS.
     ABS->notifyAboutSplitBlock(BB, oldTerminatorBlock);
 
     BB->getTerminator()->eraseFromParent();
-    BranchInst *errorHandling = BranchInst::Create(
-        oldTerminatorBlock,
-        errorHandlingBlock,
-        compareSignatures,
-        BB);
+    builder->SetInsertPoint(BB);
 
-    return errorHandling;
+    BranchInst *errorHandling =
+        builder->CreateCondBr(compareSignatures, oldTerminatorBlock, errorHandlingBlock);
+
+    return oldTerminatorBlock;
   }
 
 
-  Instruction* InstrumentBasicBlocks::insertRuntimeAdjustingSignature(BasicBlock &BB) {
+  Instruction* InstrumentBasicBlocks::insertRuntimeAdjustingSignature(BasicBlock &BB, Value *D,
+      IRBuilder<> *builder) {
     // If this is actually our block, we do want to store 0 in D, so
     // there's no special treatment here.
     BasicBlock *authSibling = ABS->getAuthoritativeSibling(&BB);
 
-    ConstantInt* signature = ABS->getSignature(&BB);
-    ConstantInt* siblingSignature = ABS->getSignature(authSibling);
-    ConstantInt *signatureAdjustment = ConstantInt::get(Type::getInt64Ty(getGlobalContext()),
-      APIntOps::Xor(signature->getValue(), siblingSignature->getValue()).getLimitedValue());
+    Signature* signature = ABS->getSignature(&BB);
+    Signature* siblingSignature = ABS->getSignature(authSibling);
+    Signature *signatureAdjustment = ConstantInt::get(getGlobalContext(),
+        APIntOps::Xor(signature->getValue(), siblingSignature->getValue()));
 
-    return new StoreInst(signatureAdjustment, D, BB.getTerminator());
+    DEBUG(errs() << debugPrefix << "[" << BB.getName() << "] adjusting for ["
+        << authSibling->getName() << "]: " << signatureAdjustment->getValue() << "\n");
+
+    return builder->CreateStore(signatureAdjustment, D);
   }
 
 
@@ -255,12 +373,14 @@ namespace cfcss {
         "handleSignatureFault",
         F);
 
-    InlineAsm *ud2 = InlineAsm::get(FunctionType::get(
-        Type::getVoidTy(getGlobalContext()), ArrayRef<Type*>(), false),
-        StringRef("ud2"), StringRef(), true);
+    IRBuilder<> builder(errorHandlingBlock);
 
-    CallInst::Create(ud2, ArrayRef<Value*>(), "", errorHandlingBlock);
-    new UnreachableInst(getGlobalContext(), errorHandlingBlock);
+    InlineAsm *ud2 =
+        InlineAsm::get(FunctionType::get(builder.getVoidTy(), ArrayRef<Type*>(), false),
+            StringRef("ud2"), StringRef(), true);
+
+    builder.CreateCall(ud2);
+    builder.CreateUnreachable();
 
     ignoreBlocks.insert(errorHandlingBlock);
 
@@ -274,4 +394,4 @@ namespace cfcss {
 }
 
 static RegisterPass<cfcss::InstrumentBasicBlocks>
-    X("instrument-blocks", "Instrument basic blocks (CFCSS)", false, false);
+    X("instrument-blocks", "Instrument Basic Blocks (CFCSS)");

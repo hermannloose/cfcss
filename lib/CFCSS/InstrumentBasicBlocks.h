@@ -6,11 +6,13 @@
 #pragma once
 
 #include "AssignBlockSignatures.h"
-#include "ReturnBlocks.h"
+#include "GatewayFunctions.h"
+#include "InstructionIndex.h"
 #include "SplitAfterCall.h"
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
@@ -39,31 +41,28 @@ namespace cfcss {
 
     private:
       AssignBlockSignatures *ABS;
-      ReturnBlocks *RB;
+      GatewayFunctions *GF;
+      InstructionIndex *II;
       SplitAfterCall *SAC;
-
-      AllocaInst *GSR;
-      AllocaInst *D;
 
       BlockSet ignoreBlocks;
 
-      void instrumentEntryBlock(BasicBlock &entryBlock);
       BasicBlock* createErrorHandlingBlock(Function *F);
 
-      Instruction* instrumentAfterCallBlock(BasicBlock &BB, BasicBlock *errorHandlingBlock,
-          Instruction *insertBefore);
-
-      Instruction* insertSignatureUpdate(
+      BasicBlock* insertSignatureUpdate(
           BasicBlock *BB,
           BasicBlock *errorHandlingBlock,
+          Value *GSR,
+          Value *D,
           ConstantInt *signature,
           ConstantInt *predecessorSignature,
           bool adjustForFanin,
-          Instruction *insertBefore);
+          IRBuilder<> *builder);
 
-      Instruction* insertRuntimeAdjustingSignature(BasicBlock &BB);
+      Instruction* insertRuntimeAdjustingSignature(BasicBlock &BB, Value *D, IRBuilder<> *builder);
 
       GlobalVariable *interFunctionGSR;
+      GlobalVariable *interFunctionD;
   };
 
 }

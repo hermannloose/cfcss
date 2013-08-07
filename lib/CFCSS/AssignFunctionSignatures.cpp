@@ -81,4 +81,4 @@ namespace cfcss {
 }
 
 static RegisterPass<cfcss::AssignFunctionSignatures>
-    X("assign-function-sigs", "Assign function signatures for CFCSS", false, true);
+    X("assign-function-sigs", "Assign function signatures for CFCSS");

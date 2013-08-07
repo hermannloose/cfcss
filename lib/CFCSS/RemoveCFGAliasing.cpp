@@ -8,7 +8,7 @@
 
 #include "RemoveCFGAliasing.h"
 
-#include "ReturnBlocks.h"
+#include "GatewayFunctions.h"
 #include "SplitAfterCall.h"
 
 #include "llvm/ADT/SmallPtrSet.h"
@@ -73,7 +73,7 @@ namespace cfcss {
 
   void RemoveCFGAliasing::getAnalysisUsage(AnalysisUsage &AU) const {
     // TODO(hermannloose): AU.setPreservesAll() would probably not hurt.
-    AU.addPreserved<ReturnBlocks>();
+    AU.addPreserved<GatewayFunctions>();
     AU.addPreserved<SplitAfterCall>();
   }
 
@@ -183,4 +183,4 @@ namespace cfcss {
 }
 
 static RegisterPass<cfcss::RemoveCFGAliasing>
-    X("remove-cfg-aliasing", "Remove CFG aliasing (CFCSS)", true, true);
+    X("remove-cfg-aliasing", "Remove CFG aliasing (CFCSS)");
