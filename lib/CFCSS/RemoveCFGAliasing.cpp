@@ -8,6 +8,7 @@
 
 #include "RemoveCFGAliasing.h"
 
+#include "GatewayFunctions.h"
 #include "ReturnBlocks.h"
 #include "SplitAfterCall.h"
 
@@ -73,6 +74,7 @@ namespace cfcss {
 
   void RemoveCFGAliasing::getAnalysisUsage(AnalysisUsage &AU) const {
     // TODO(hermannloose): AU.setPreservesAll() would probably not hurt.
+    AU.addPreserved<GatewayFunctions>();
     AU.addPreserved<ReturnBlocks>();
     AU.addPreserved<SplitAfterCall>();
   }
