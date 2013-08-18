@@ -4,7 +4,7 @@
  * TODO(hermannloose): Add description.
  */
 
-#define DEBUG_TYPE "cfcss"
+#define DEBUG_TYPE "cfcss-split-after-call"
 
 #include "SplitAfterCall.h"
 

@@ -4,7 +4,7 @@
  * TODO(hermannloose): Add description.
  */
 
-#define DEBUG_TYPE "cfcss"
+#define DEBUG_TYPE "cfcss-instruction-index"
 
 #include "InstructionIndex.h"
 
