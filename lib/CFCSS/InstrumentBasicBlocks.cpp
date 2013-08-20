@@ -267,29 +267,31 @@ namespace cfcss {
 
       DEBUG(errs() << debugPrefix << "Instrumenting return blocks.\n");
 
-      if (GF->isGateway(fi)) {
-        ReturnInst *returnInst = II->getPrimaryReturn(fi);
+      if (!II->doesNotReturn(fi)) {
+        if (GF->isGateway(fi)) {
+          ReturnInst *returnInst = II->getPrimaryReturn(fi);
 
-        builder.SetInsertPoint(returnInst);
+          builder.SetInsertPoint(returnInst);
 
-        builder.CreateStore(ConstantInt::get(intType, 0), interFunctionGSR);
-        builder.CreateStore(ConstantInt::get(intType, 0), interFunctionD);
-      } else {
-        ReturnInst *primaryReturn = II->getPrimaryReturn(fi);
-        ConstantInt *sigA = ABS->getSignature(primaryReturn->getParent());
+          builder.CreateStore(ConstantInt::get(intType, 0), interFunctionGSR);
+          builder.CreateStore(ConstantInt::get(intType, 0), interFunctionD);
+        } else {
+          ReturnInst *primaryReturn = II->getPrimaryReturn(fi);
+          ConstantInt *sigA = ABS->getSignature(primaryReturn->getParent());
 
-        ReturnList *returns = II->getReturns(fi);
-        for (ReturnList::iterator ri = returns->begin(), re = returns->end(); ri != re; ++ri) {
-          ConstantInt *sigB = ABS->getSignature((*ri)->getParent());
-          ConstantInt *signatureAdjustment = ConstantInt::get(getGlobalContext(),
-              APIntOps::Xor(sigA->getValue(), sigB->getValue()));
+          ReturnList *returns = II->getReturns(fi);
+          for (ReturnList::iterator ri = returns->begin(), re = returns->end(); ri != re; ++ri) {
+            ConstantInt *sigB = ABS->getSignature((*ri)->getParent());
+            ConstantInt *signatureAdjustment = ConstantInt::get(getGlobalContext(),
+                APIntOps::Xor(sigA->getValue(), sigB->getValue()));
 
-          DEBUG(errs() << debugPrefix << "D = " << signatureAdjustment->getValue()
-              << " (" << sigA->getValue() << " xor " << sigB->getValue() << ")\n");
+            DEBUG(errs() << debugPrefix << "D = " << signatureAdjustment->getValue()
+                << " (" << sigA->getValue() << " xor " << sigB->getValue() << ")\n");
 
-          builder.SetInsertPoint(*ri);
-          builder.CreateStore(builder.CreateLoad(GSR, "GSR"), interFunctionGSR);
-          builder.CreateStore(signatureAdjustment, interFunctionD);
+            builder.SetInsertPoint(*ri);
+            builder.CreateStore(builder.CreateLoad(GSR, "GSR"), interFunctionGSR);
+            builder.CreateStore(signatureAdjustment, interFunctionD);
+          }
         }
       }
 
@@ -395,3 +397,4 @@ namespace cfcss {
 
 static RegisterPass<cfcss::InstrumentBasicBlocks>
     X("instrument-blocks", "Instrument Basic Blocks (CFCSS)");
+
