@@ -9,6 +9,7 @@
 #include "RemoveCFGAliasing.h"
 
 #include "GatewayFunctions.h"
+#include "InstructionIndex.h"
 #include "SplitAfterCall.h"
 
 #include "llvm/ADT/SmallPtrSet.h"
@@ -74,6 +75,7 @@ namespace cfcss {
   void RemoveCFGAliasing::getAnalysisUsage(AnalysisUsage &AU) const {
     // TODO(hermannloose): AU.setPreservesAll() would probably not hurt.
     AU.addPreserved<GatewayFunctions>();
+    AU.addPreserved<InstructionIndex>();
     AU.addPreserved<SplitAfterCall>();
   }
 

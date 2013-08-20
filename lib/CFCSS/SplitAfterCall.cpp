@@ -9,6 +9,7 @@
 #include "SplitAfterCall.h"
 
 #include "GatewayFunctions.h"
+#include "InstructionIndex.h"
 #include "RemoveCFGAliasing.h"
 
 #include "llvm/ADT/Statistic.h"
@@ -30,14 +31,19 @@ namespace cfcss {
       returnFromCallTo() {}
 
   void SplitAfterCall::getAnalysisUsage(AnalysisUsage &AU) const {
+    AU.addRequiredTransitive<InstructionIndex>();
+
     // TODO(hermannloose): AU.setPreservesAll() would probably not hurt.
     AU.addPreserved<CallGraph>();
     AU.addPreserved<GatewayFunctions>();
+    AU.addPreserved<InstructionIndex>();
     AU.addPreserved<RemoveCFGAliasing>();
   }
 
   bool SplitAfterCall::runOnModule(Module &M) {
     bool modifiedCFG = false;
+
+    InstructionIndex &II = getAnalysis<InstructionIndex>();
 
     for (Module::iterator fi = M.begin(), fe = M.end(); fi != fe; ++fi) {
       if (fi->isDeclaration()) {
@@ -53,13 +59,16 @@ namespace cfcss {
           continue;
         }
 
+        // TODO(hermannloose): Use InstructionIndex::getCalls().
         for (BasicBlock::iterator ii = bi->begin(), ie = bi->end(); ii != ie; ++ii) {
           if (CallInst *callInst = dyn_cast<CallInst>(ii)) {
             DEBUG(errs() << debugPrefix << "Found CallInst in [" << bi->getName() << "]:\n");
             DEBUG(ii->dump());
 
             if (Function *calledFunction = callInst->getCalledFunction()) {
-              if (!calledFunction->isDeclaration()) {
+              if (!(calledFunction->isDeclaration() || calledFunction->isIntrinsic())
+                  && !II.doesNotReturn(calledFunction)) {
+
                 // Don't let our iterator wander off into the split block.
                 BasicBlock::iterator nextInst(ii);
                 ++nextInst;
