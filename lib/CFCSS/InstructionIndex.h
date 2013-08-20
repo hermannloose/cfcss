@@ -43,6 +43,19 @@ namespace cfcss {
           llvm::Function * const container);
 
       /**
+       * Check whether the function has any return instructions.
+       *
+       * LLVM's Function::doesNotReturn() is not always true for functions
+       * where every code path contains a call to a function that does not
+       * return, i.e. this information is not propagated as expected. We use
+       * this as a workaround to not split basic blocks after calls to such
+       * functions.
+       *
+       * This is equivalent to getReturns()->empty().
+       */
+      bool doesNotReturn(llvm::Function * const F);
+
+      /**
        * Get a list of all return instructions contained in the given function.
        */
       ReturnList* getReturns(llvm::Function * const F);

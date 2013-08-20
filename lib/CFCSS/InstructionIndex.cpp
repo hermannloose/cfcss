@@ -81,6 +81,11 @@ namespace cfcss {
   }
 
 
+  bool InstructionIndex::doesNotReturn(Function * const F) {
+    return F->doesNotReturn() || returnsByFunction.lookup(F)->empty();
+  }
+
+
   ReturnList* InstructionIndex::getReturns(Function * const F) {
     return returnsByFunction.lookup(F);
   }
