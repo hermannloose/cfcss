@@ -4,7 +4,7 @@
  * TODO(hermannloose): Add description.
  */
 
-#define DEBUG_TYPE "cfcss"
+#define DEBUG_TYPE "cfcss-remove-cfg-aliasing"
 
 #include "RemoveCFGAliasing.h"
 
