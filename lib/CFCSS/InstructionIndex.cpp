@@ -34,6 +34,8 @@ namespace cfcss {
         continue;
       }
 
+      DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "].\n");
+
       CallList *callList = new CallList();
       callsByFunction.insert(std::pair<Function*, CallList*>(fi, callList));
 
@@ -46,13 +48,16 @@ namespace cfcss {
       for (Function::iterator bi = fi->begin(), be = fi->end(); bi != be; ++bi) {
         for (BasicBlock::iterator ii = bi->begin(), ie = bi->end(); ii != ie; ++ii) {
           if (CallInst *callInst = dyn_cast<CallInst>(ii)) {
-            Function *calledFunction = callInst->getCalledFunction();
-            if (!(calledFunction->isDeclaration() || calledFunction->isIntrinsic())) {
-              callList->push_back(callInst);
+            if (Function *calledFunction = callInst->getCalledFunction()) {
+              if (!calledFunction->isDeclaration() && !calledFunction->isIntrinsic()) {
+                callList->push_back(callInst);
 
-              if (!primaryCalls->count(calledFunction)) {
-                primaryCalls->insert(std::pair<Function*, CallInst*>(calledFunction, callInst));
+                if (!primaryCalls->count(calledFunction)) {
+                  primaryCalls->insert(std::pair<Function*, CallInst*>(calledFunction, callInst));
+                }
               }
+            } else {
+              // TODO(hermannloose): Handle function pointers & inline asm.
             }
           }
 
