@@ -20,6 +20,8 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
+using namespace llvm;
+
 static const char *debugPrefix = "RemoveCFGAliasing: ";
 
 namespace cfcss {
@@ -41,15 +43,15 @@ namespace cfcss {
       DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "].\n");
 
       for (Function::iterator i = fi->begin(), e = fi->end(); i != e; ++i) {
-        BlockMap *aliasingBlocks = getAliasingBlocks(i);
+        BlockToBlockSetMap *aliasingBlocks = getAliasingBlocks(i);
         if (aliasingBlocks->size()) {
           NumAliasingBlocks += aliasingBlocks->size() + 1;
           // We will modify CFG during this run.
           modifiedCFG = true;
         }
 
-        for (BlockMap::iterator via_i = aliasingBlocks->begin(), via_e = aliasingBlocks->end();
-            via_i != via_e; ++via_i) {
+        for (BlockToBlockSetMap::iterator via_i = aliasingBlocks->begin(),
+            via_e = aliasingBlocks->end(); via_i != via_e; ++via_i) {
 
           for (BlockSet::iterator alias_i = via_i->second->begin(), alias_e = via_i->second->end();
               alias_i != alias_e; ++alias_i) {
@@ -79,10 +81,8 @@ namespace cfcss {
     AU.addPreserved<SplitAfterCall>();
   }
 
-  RemoveCFGAliasing::BlockMap* RemoveCFGAliasing::getAliasingBlocks(BasicBlock *BB) {
-    DEBUG(errs() << debugPrefix << "Checking [" << BB->getName() << "] for aliasing.\n");
-
-    BlockMap *aliasingBlocks = new BlockMap();
+  BlockToBlockSetMap* RemoveCFGAliasing::getAliasingBlocks(BasicBlock *BB) {
+    BlockToBlockSetMap *aliasingBlocks = new BlockToBlockSetMap();
 
     // FIXME(hermannloose): Might make control-flow a bit nicer here.
     // The aliasing problem is limited to fanin nodes.

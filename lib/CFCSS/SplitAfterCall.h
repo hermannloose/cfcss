@@ -5,17 +5,14 @@
  */
 #pragma once
 
+#include "Common.h"
+
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
-using namespace llvm;
-
 namespace cfcss {
-  // FIXME(hermannloose): Remove duplication & is 64 sensible?
-  typedef SmallPtrSet<BasicBlock*, 64> BlockSet;
-  typedef DenseMap<BasicBlock*, Function*> BlockToFunctionMap;
 
   /**
    * Split basic blocks after call instructions.
@@ -25,26 +22,26 @@ namespace cfcss {
    * basic blocks like a normal basic block that control flow can arrive at and
    * where signatures have to be checked, we split them for easier handling.
    */
-  class SplitAfterCall : public ModulePass {
+  class SplitAfterCall : public llvm::ModulePass {
     public:
       static char ID;
 
       SplitAfterCall();
 
-      virtual void getAnalysisUsage(AnalysisUsage &AU) const;
-      virtual bool runOnModule(Module &M);
+      virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
+      virtual bool runOnModule(llvm::Module &M);
 
       /**
        * Check whether the given basic block is the remainder of another basic
        * block that was split after a call instruction.
        */
-      bool wasSplitAfterCall(BasicBlock * const BB);
+      bool wasSplitAfterCall(llvm::BasicBlock * const BB);
 
       /**
        * Get the function that we just returned from when entering the given
        * basic block. This implies that wasSplitAfterCall(BB) is true.
        */
-      Function* getCalledFunctionForReturnBlock(BasicBlock * const BB);
+      llvm::Function* getCalledFunctionForReturnBlock(llvm::BasicBlock * const BB);
 
     private:
       BlockSet ignoreBlocks;

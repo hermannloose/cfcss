@@ -19,6 +19,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
+using namespace llvm;
+
 static const char *debugPrefix = "SplitAfterCall: ";
 
 namespace cfcss {

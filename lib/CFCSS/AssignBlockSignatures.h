@@ -9,38 +9,36 @@
 
 #include "llvm/Pass.h"
 
-using namespace llvm;
-
 namespace cfcss {
 
   /**
    * Assign signatures to every basic block in a module and provide these
    * signatures keyed by basic block for later passes.
    */
-  class AssignBlockSignatures : public ModulePass {
+  class AssignBlockSignatures : public llvm::ModulePass {
     public:
       static char ID;
 
       AssignBlockSignatures();
 
-      virtual void getAnalysisUsage(AnalysisUsage &AU) const;
-      virtual bool runOnModule(Module &M);
+      virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
+      virtual bool runOnModule(llvm::Module &M);
 
       /**
        * Get the signature of the given basic block, if any.
        */
-      Signature* getSignature(BasicBlock * const BB);
+      Signature* getSignature(llvm::BasicBlock * const BB);
 
       /**
        * Check whether the given basic block is a fanin node.
        */
-      bool isFaninNode(BasicBlock * const BB);
+      bool isFaninNode(llvm::BasicBlock * const BB);
 
       /**
        * Check whether the given basic block has a successor that is a fanin
        * node.
        */
-      bool hasFaninSuccessor(BasicBlock * const BB);
+      bool hasFaninSuccessor(llvm::BasicBlock * const BB);
 
       /**
        * Get the authoritative predecessor of the given basic block.
@@ -49,7 +47,7 @@ namespace cfcss {
        * between two block signatures) used in computing the updated signature
        * upon entering a basic block and is used during instrumentation.
        */
-      BasicBlock* getAuthoritativePredecessor(BasicBlock * const BB);
+      llvm::BasicBlock* getAuthoritativePredecessor(llvm::BasicBlock * const BB);
 
       /**
        * Get the authoritative sibling of the given basic block.
@@ -59,7 +57,7 @@ namespace cfcss {
        * signature difference between them and the authoritative predecessor,
        * i.e. their authoritative sibling. This is used in instrumentation.
        */
-      BasicBlock* getAuthoritativeSibling(BasicBlock * const BB);
+      llvm::BasicBlock* getAuthoritativeSibling(llvm::BasicBlock * const BB);
 
       /**
        * Give the tail of a split block the same authoritative predecessor as
@@ -67,7 +65,7 @@ namespace cfcss {
        *
        * FIXME(hermannloose): This is clumsy and I'm not even sure it's needed.
        */
-      void notifyAboutSplitBlock(BasicBlock * const head, BasicBlock * const tail);
+      void notifyAboutSplitBlock(llvm::BasicBlock * const head, llvm::BasicBlock * const tail);
 
     private:
       BlockToSignatureMap blockSignatures;
