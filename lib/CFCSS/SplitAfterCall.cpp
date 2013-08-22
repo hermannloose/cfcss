@@ -19,6 +19,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 
+using namespace llvm;
+
 static const char *debugPrefix = "SplitAfterCall: ";
 
 namespace cfcss {
@@ -89,7 +91,12 @@ namespace cfcss {
               }
             } else {
               // We can't handle function pointers, inline assembly, etc.
-              DEBUG(errs() << debugPrefix << "Not a direct function call, skipping.\n");
+              DEBUG(
+                errs() << debugPrefix;
+                errs().changeColor(raw_ostream::YELLOW, true /* bold */);
+                errs() << "Not a direct function call, skipping.\n";
+                errs().resetColor();
+              );
             }
           }
         }

@@ -5,6 +5,7 @@
  */
 #pragma once
 
+#include "Common.h"
 #include "AssignBlockSignatures.h"
 #include "GatewayFunctions.h"
 #include "InstructionIndex.h"
@@ -16,28 +17,23 @@
 #include "llvm/IR/Module.h"
 #include "llvm/Pass.h"
 
-using namespace llvm;
-
 namespace cfcss {
-  // FIXME(hermannloose): Remove duplication & is 64 sensible?
-  typedef SmallPtrSet<BasicBlock*, 64> BlockSet;
-
 
   /**
    * Instrument all basic blocks in a module with signature checks.
    *
-   * This builds upon the preprocessing and analysis performed in ReturnBlocks,
-   * SplitAfterCall etc. which are scheduled in getAnalysisUsage().
+   * This builds upon the preprocessing and analysis performed in ReturnBlocks, SplitAfterCall etc.
+   * which are scheduled in getAnalysisUsage().
    */
-  class InstrumentBasicBlocks : public ModulePass {
+  class InstrumentBasicBlocks : public llvm::ModulePass {
 
     public:
       static char ID;
 
       InstrumentBasicBlocks();
 
-      virtual void getAnalysisUsage(AnalysisUsage &AU) const;
-      virtual bool runOnModule(Module &M);
+      virtual void getAnalysisUsage(llvm::AnalysisUsage &AU) const;
+      virtual bool runOnModule(llvm::Module &M);
 
     private:
       AssignBlockSignatures *ABS;
@@ -47,22 +43,25 @@ namespace cfcss {
 
       BlockSet ignoreBlocks;
 
-      BasicBlock* createErrorHandlingBlock(Function *F);
+      llvm::BasicBlock* createErrorHandlingBlock(llvm::Function *F);
 
-      BasicBlock* insertSignatureUpdate(
-          BasicBlock *BB,
-          BasicBlock *errorHandlingBlock,
-          Value *GSR,
-          Value *D,
-          ConstantInt *signature,
-          ConstantInt *predecessorSignature,
+      llvm::BasicBlock* insertSignatureUpdate(
+          llvm::BasicBlock *BB,
+          llvm::BasicBlock *errorHandlingBlock,
+          llvm::Value *GSR,
+          llvm::Value *D,
+          Signature *signature,
+          Signature *predecessorSignature,
           bool adjustForFanin,
-          IRBuilder<> *builder);
+          llvm::IRBuilder<> *builder);
 
-      Instruction* insertRuntimeAdjustingSignature(BasicBlock &BB, Value *D, IRBuilder<> *builder);
+      llvm::Instruction* insertRuntimeAdjustingSignature(
+          llvm::BasicBlock &BB,
+          llvm::Value *D,
+          llvm::IRBuilder<> *builder);
 
-      GlobalVariable *interFunctionGSR;
-      GlobalVariable *interFunctionD;
+      llvm::GlobalVariable *interFunctionGSR;
+      llvm::GlobalVariable *interFunctionD;
   };
 
 }

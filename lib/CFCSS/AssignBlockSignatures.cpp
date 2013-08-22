@@ -18,6 +18,8 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 
+using namespace llvm;
+
 static const char *debugPrefix = "AssignBlockSignatures: ";
 
 namespace cfcss {
@@ -47,13 +49,11 @@ namespace cfcss {
         continue;
       }
 
-      DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "].\n");
+      DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "] ... ");
 
       for (Function::iterator bi = fi->begin(), be = fi->end(); bi != be; ++bi, ++nextID) {
         blockSignatures.insert(BlockToSignatureEntry(bi, Signature::get(intType, nextID)));
         bi->setName(Twine("0x") + Twine::utohexstr(nextID) + Twine(": ") + bi->getName());
-
-        DEBUG(errs() << debugPrefix << "[" << bi->getName() << "]\n");
 
         for (succ_iterator si = succ_begin(bi), se = succ_end(bi); si != se; ++si) {
           BasicBlock *succ = *si;
@@ -73,7 +73,11 @@ namespace cfcss {
         }
       }
 
-      DEBUG(errs() << debugPrefix << "Finished on [" << fi->getName() << "].\n");
+      DEBUG(
+        errs().changeColor(raw_ostream::GREEN);
+        errs() << "done\n";
+        errs().resetColor();
+      );
     }
 
     return false;

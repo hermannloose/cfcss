@@ -84,6 +84,7 @@ namespace cfcss {
         continue;
       }
 
+      // TODO(hermannloose): Check whether these can occur at all.
       if (fi->isIntrinsic()) {
         DEBUG(errs() << debugPrefix << "Skipping [" << fi->getName() << "] (intrinsic)\n");
 
@@ -109,8 +110,6 @@ namespace cfcss {
 
       // TODO(hermannloose): Maybe delegate to two functions for this.
       if (GF->isGateway(fi)) {
-        DEBUG(errs() << debugPrefix << "(is a gateway)\n");
-
         Signature *signature = ABS->getSignature(entryBlock);
         builder.CreateStore(signature, GSR);
 
@@ -130,8 +129,6 @@ namespace cfcss {
           builder.CreateStore(signatureAdjustment, D);
         }
       } else {
-        DEBUG(errs() << debugPrefix << "(is a normal function)\n");
-
         Function *authoritativePredecessor = GF->getAuthoritativePredecessor(fi);
         assert(authoritativePredecessor && "Function should have an authoritative predecessor!");
         CallInst *callSite = II->getPrimaryCallTo(fi, authoritativePredecessor);
@@ -139,14 +136,8 @@ namespace cfcss {
         BasicBlock *callingBlock = callSite->getParent();
         assert(callingBlock && "Call site should be part of a basic block!");
 
-        DEBUG(errs() << debugPrefix << "Authoritative call site: [" << callingBlock->getName()
-            << "] in [" << authoritativePredecessor->getName() << "].\n");
-
         ConstantInt *predecessorSignature = ABS->getSignature(callingBlock);
         assert(predecessorSignature && "Calling basic block should have a signature!");
-
-        DEBUG(errs() << debugPrefix << "Authoritative predecessor signature: "
-            << predecessorSignature->getValue() << "\n");
 
         builder.CreateStore(builder.CreateLoad(interFunctionGSR, "GSR"), GSR);
         builder.CreateStore(builder.CreateLoad(interFunctionD, "D"), D);
@@ -175,8 +166,6 @@ namespace cfcss {
 
       for (Function::iterator bi = fi->begin(), be = fi->end(); bi != be; ++bi) {
         if (ignoreBlocks.count(bi)) {
-          DEBUG(errs() << debugPrefix << "Ignoring [" << bi->getName() << "].\n");
-
           // Ignore the remainders of previously split blocks.
           continue;
         }
@@ -193,9 +182,6 @@ namespace cfcss {
           builder.CreateStore(builder.CreateLoad(interFunctionD, "D"), D);
 
           Function *calledFunction = SAC->getCalledFunctionForReturnBlock(bi);
-
-          DEBUG(errs() << debugPrefix << "[" << bi->getName() << "] was split after call to ["
-              << calledFunction->getName() << "].\n");
 
           ReturnInst *primaryReturn = II->getPrimaryReturn(calledFunction);
           BasicBlock *authoritativeReturnBlock = primaryReturn->getParent();
@@ -233,9 +219,6 @@ namespace cfcss {
         builder.SetInsertPoint(remainder->getTerminator());
 
         if (ABS->hasFaninSuccessor(bi)) {
-          DEBUG(errs() << debugPrefix << "[" << bi->getName()
-              << "] has a fanin successors, setting D.\n");
-
           insertRuntimeAdjustingSignature(*remainder, D, &builder);
         }
       }
@@ -285,9 +268,6 @@ namespace cfcss {
             ConstantInt *signatureAdjustment = ConstantInt::get(getGlobalContext(),
                 APIntOps::Xor(sigA->getValue(), sigB->getValue()));
 
-            DEBUG(errs() << debugPrefix << "D = " << signatureAdjustment->getValue()
-                << " (" << sigA->getValue() << " xor " << sigB->getValue() << ")\n");
-
             builder.SetInsertPoint(*ri);
             builder.CreateStore(builder.CreateLoad(GSR, "GSR"), interFunctionGSR);
             builder.CreateStore(signatureAdjustment, interFunctionD);
@@ -295,7 +275,12 @@ namespace cfcss {
         }
       }
 
-      DEBUG(errs() << debugPrefix << "Run on function [" << fi->getName() << "] complete.\n");
+      DEBUG(
+        errs() << debugPrefix;
+        errs().changeColor(raw_ostream::GREEN);
+        errs() << "Finished on [" << fi->getName() << "].\n";
+        errs().resetColor();
+      );
     }
 
     return true;
@@ -317,8 +302,6 @@ namespace cfcss {
     assert(signature);
     assert(predecessorSignature);
     assert(builder);
-
-    DEBUG(errs() << debugPrefix << "Instrumenting [" << BB->getName() << "]\n");
 
     // Compute the signature update.
     ConstantInt *signatureDiff = ConstantInt::get(getGlobalContext(),
@@ -361,9 +344,6 @@ namespace cfcss {
     Signature* siblingSignature = ABS->getSignature(authSibling);
     Signature *signatureAdjustment = ConstantInt::get(getGlobalContext(),
         APIntOps::Xor(signature->getValue(), siblingSignature->getValue()));
-
-    DEBUG(errs() << debugPrefix << "[" << BB.getName() << "] adjusting for ["
-        << authSibling->getName() << "]: " << signatureAdjustment->getValue() << "\n");
 
     return builder->CreateStore(signatureAdjustment, D);
   }
