@@ -56,9 +56,13 @@ namespace cfcss {
           for (BlockSet::iterator alias_i = via_i->second->begin(), alias_e = via_i->second->end();
               alias_i != alias_e; ++alias_i) {
 
-            DEBUG(errs() << debugPrefix << "[" << i->getName() << "]\n  ["
-                << (*alias_i)->getName() << "] via ["
-                << via_i->first->getName() << "]\n");
+            DEBUG(
+              errs() << debugPrefix;
+              errs().indent(2).changeColor(raw_ostream::WHITE, true /* bold */);
+              errs() << "[" << i->getName() << "] and [" << (*alias_i)->getName() << "] via ["
+                  << via_i->first->getName() << "]\n";
+              errs().resetColor();
+            );
 
             insertProxyBlock(via_i->first, *alias_i);
             ++NumProxyBlocks;
@@ -68,7 +72,12 @@ namespace cfcss {
         delete aliasingBlocks;
       }
 
-      DEBUG(errs() << debugPrefix << "Finished on [" << fi->getName() << "].\n");
+      DEBUG(
+        errs() << debugPrefix;
+        errs().changeColor(raw_ostream::GREEN);
+        errs() << "Finished on [" << fi->getName() << "].\n";
+        errs().resetColor();
+      );
     }
 
     return modifiedCFG;
@@ -87,25 +96,12 @@ namespace cfcss {
     // FIXME(hermannloose): Might make control-flow a bit nicer here.
     // The aliasing problem is limited to fanin nodes.
     if (!BB->hasNUsesOrMore(2)) {
-      DEBUG(errs() << debugPrefix << "[" << BB->getName()
-          << "] is not a fanin node, can't alias.\n");
-
       return aliasingBlocks;
     }
 
     BlockSet *predecessors = new BlockSet(pred_begin(BB), pred_end(BB));
 
-    DEBUG(errs() << debugPrefix << "Predecessors:");
-    for (BlockSet::iterator i = predecessors->begin(), e = predecessors->end();
-        i != e; ++i) {
-
-      DEBUG(errs() << " [" << (*i)->getName() << "]");
-    }
-    DEBUG(errs() << "\n");
-
     for (pred_iterator i = pred_begin(BB), e = pred_end(BB); i != e; ++i) {
-      DEBUG(errs() << debugPrefix << "Checking successors of [" << (*i)->getName() << "].\n");
-
       BlockSet *aliasingSuccessors = new BlockSet();
 
       for (succ_iterator succ_i = succ_begin(*i), succ_e = succ_end(*i);
@@ -115,9 +111,6 @@ namespace cfcss {
 
         // The aliasing problem is limited to fanin nodes.
         if (succ_i->hasNUsesOrMore(2)) {
-          DEBUG(errs() << debugPrefix << "[" << succ_i->getName()
-              << "] is a fanin node, checking for predecessor overlap.\n");
-
           for (pred_iterator pred_i = pred_begin(*succ_i), pred_e = pred_end(*succ_i);
               pred_i != pred_e; ++pred_i) {
 
@@ -126,10 +119,6 @@ namespace cfcss {
             // as well, which will be detected when running this method on
             // succ_i later on.
             if (!predecessors->count(*pred_i)) {
-              DEBUG(errs() << debugPrefix << "[" << (*pred_i)->getName()
-                  << "] is a predecessor of [" << (*succ_i)->getName()
-                  << "] but not of [" << BB->getName() << "].\n");
-
               aliasingSuccessors->insert(*succ_i);
               break;
             }
@@ -149,9 +138,6 @@ namespace cfcss {
 
   // FIXME(hermannloose): Assert that target is in fact a successor of source!
   BasicBlock* RemoveCFGAliasing::insertProxyBlock(BasicBlock *source, BasicBlock *target) {
-    DEBUG(errs() << debugPrefix << "Inserting proxy block between [" << source->getName()
-        << "] and [" << target->getName() << "].\n");
-
     BasicBlock *proxyBlock = BasicBlock::Create(
         getGlobalContext(),
         "proxyBlock",

@@ -34,7 +34,7 @@ namespace cfcss {
         continue;
       }
 
-      DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "].\n");
+      DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "] ... ");
 
       CallList *callList = new CallList();
       callsByFunction.insert(std::pair<Function*, CallList*>(fi, callList));
@@ -66,6 +66,12 @@ namespace cfcss {
           }
         }
       }
+
+      DEBUG(
+        errs().changeColor(raw_ostream::GREEN);
+        errs() << "done\n";
+        errs().resetColor();
+      );
     }
 
     return false;

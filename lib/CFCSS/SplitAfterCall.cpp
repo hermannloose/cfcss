@@ -91,7 +91,12 @@ namespace cfcss {
               }
             } else {
               // We can't handle function pointers, inline assembly, etc.
-              DEBUG(errs() << debugPrefix << "Not a direct function call, skipping.\n");
+              DEBUG(
+                errs() << debugPrefix;
+                errs().changeColor(raw_ostream::YELLOW, true /* bold */);
+                errs() << "Not a direct function call, skipping.\n";
+                errs().resetColor();
+              );
             }
           }
         }

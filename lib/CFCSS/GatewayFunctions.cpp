@@ -19,9 +19,6 @@ using namespace llvm;
 
 static const char *debugPrefix = "GatewayFunctions: ";
 
-static const char *yellow = "\x1b[33m";
-static const char *reset = "\x1b[0m";
-
 namespace cfcss {
 
   GatewayFunctions::GatewayFunctions() : ModulePass(ID), authoritativePredecessors(),
@@ -47,16 +44,25 @@ namespace cfcss {
       CallGraphNode *externallyCalled = ci->second;
 
       if (Function *F = externallyCalled->getFunction()) {
-        if (F->isIntrinsic()) {
-          DEBUG(errs() << debugPrefix << yellow
-              << "Ignoring [" << F->getName() << "] (intrinsic)\n" << reset);
+        if (F->isDeclaration()) {
+          DEBUG(
+            errs() << debugPrefix;
+            errs().changeColor(raw_ostream::YELLOW, true /* bold */);
+            errs() << "Ignoring [" << F->getName() << "] (declaration)\n";
+            errs().resetColor();
+          );
 
           continue;
         }
 
-        if (F->isDeclaration()) {
-          DEBUG(errs() << debugPrefix << yellow
-              << "Ignoring [" << F->getName() << "] (declaration)\n" << reset);
+        // TODO(hermannloose): Check whether intrinsics are always declarations.
+        if (F->isIntrinsic()) {
+          DEBUG(
+            errs() << debugPrefix;
+            errs().changeColor(raw_ostream::YELLOW, true /* bold */);
+            errs() << "Ignoring [" << F->getName() << "] (intrinsic)\n";
+            errs().resetColor();
+          );
 
           continue;
         }
@@ -69,7 +75,7 @@ namespace cfcss {
           // that newly created gateways are proxy functions without any
           // further instructions.
           DEBUG(errs() << debugPrefix << "[" << F->getName() << "] has no internal callers, "
-              << "marking as gateway for easier handling.\n" << reset);
+              << "marking as gateway for easier handling.\n");
 
           gatewayToInternal.insert(FunctionToFunctionEntry(F, F));
 
@@ -148,8 +154,12 @@ namespace cfcss {
           faninNodes.insert(callerFunction);
         }
       } else {
-        DEBUG(errs() << debugPrefix << yellow
-            << "Ignoring call graph node without function.\n" << reset);
+        DEBUG(
+          errs() << debugPrefix;
+          errs().changeColor(raw_ostream::YELLOW, true /* bold */);
+          errs() << "Ignoring call graph node without function.\n";
+          errs().resetColor();
+        );
       }
     }
 
