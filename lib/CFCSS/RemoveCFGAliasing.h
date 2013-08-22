@@ -15,8 +15,8 @@
 namespace cfcss {
 
   /**
-   * Remove cases of fanin nodes in the CFG aliasing by inserting proxy blocks
-   * on all offending edges.
+   * Remove cases of fanin nodes in the CFG aliasing by inserting proxy blocks on all offending
+   * edges.
    */
   class RemoveCFGAliasing : public llvm::ModulePass {
     public:

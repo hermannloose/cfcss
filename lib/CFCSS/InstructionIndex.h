@@ -17,8 +17,7 @@ namespace cfcss {
   typedef std::list<llvm::ReturnInst*> ReturnList;
 
   /**
-   * Gather interesting instructions—i.e. calls, invokes and returns—for lookup
-   * by other CFCSS passes.
+   * Gather interesting instructions—calls, invokes and returns—for lookup by other CFCSS passes.
    */
   class InstructionIndex : public llvm::ModulePass {
 
@@ -36,8 +35,8 @@ namespace cfcss {
       CallList* getCalls(llvm::Function * const F);
 
       /**
-       * Get the primary call instruction referring to the given target,
-       * contained within the given function.
+       * Get the primary call instruction referring to the given target, contained within the given
+       * function.
        */
       llvm::CallInst* getPrimaryCallTo(llvm::Function * const target,
           llvm::Function * const container);
@@ -45,11 +44,10 @@ namespace cfcss {
       /**
        * Check whether the function has any return instructions.
        *
-       * LLVM's Function::doesNotReturn() is not always true for functions
-       * where every code path contains a call to a function that does not
-       * return, i.e. this information is not propagated as expected. We use
-       * this as a workaround to not split basic blocks after calls to such
-       * functions.
+       * LLVM's Function::doesNotReturn() is not always true for functions where every code path
+       * contains a call to a function that does not return, i.e. this information is not
+       * propagated as expected. We use this as a workaround to not split basic blocks after calls
+       * to such functions.
        *
        * This is equivalent to getReturns()->empty().
        */

@@ -35,8 +35,7 @@ namespace cfcss {
       llvm::Function* getInternalFunction(llvm::Function * const F);
 
       /**
-       * Get the authoritative predecessor of a function, after gateways have
-       * been inserted.
+       * Get the authoritative predecessor of a function, after gateways have been inserted.
        */
       llvm::Function* getAuthoritativePredecessor(llvm::Function * const F);
 
