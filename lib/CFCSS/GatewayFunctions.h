@@ -8,7 +8,16 @@
 namespace cfcss {
 
   /**
-   * TODO(hermannloose): Document this.
+   * Wrap externally visible functions with a gateway function to later establish a known good
+   * state for CFCSS regarding the contents of GSR and D.
+   *
+   * For all externally visible functions, this will rename the original function and change it to
+   * have internal linkage. It then adds a new externally visible function with the same signature
+   * as a gateway that forwards calls to the private implementation and returns the result.
+   * Instrumentation of the gateway will later concern itself with setting GSR and D to sensible
+   * starting values. All calls from within the module to the original function bypass the gateway
+   * and go directly to the implementation, since they will carry actual signatures in GSR and
+   * D that we want to check upon entering the called function.
    */
   class GatewayFunctions : public llvm::ModulePass {
     public:
