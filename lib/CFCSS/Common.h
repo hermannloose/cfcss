@@ -1,8 +1,3 @@
-/**
- * @author Hermann Loose <hermannloose@gmail.com>
- *
- * TODO(hermannloose): Add description.
- */
 #pragma once
 
 #include "llvm/ADT/DenseMap.h"

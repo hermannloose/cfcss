@@ -1,9 +1,3 @@
-/**
- * @author Hermann Loose <hermannloose@gmail.com>
- *
- * TODO(hermannloose): Add description.
- */
-
 #define DEBUG_TYPE "cfcss-gateway-functions"
 
 #include "GatewayFunctions.h"
