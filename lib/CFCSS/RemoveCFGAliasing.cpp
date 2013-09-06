@@ -4,7 +4,6 @@
 
 #include "GatewayFunctions.h"
 #include "InstructionIndex.h"
-#include "SplitAfterCall.h"
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/Statistic.h"
@@ -81,7 +80,6 @@ namespace cfcss {
     // TODO(hermannloose): AU.setPreservesAll() would probably not hurt.
     AU.addPreserved<GatewayFunctions>();
     AU.addPreserved<InstructionIndex>();
-    AU.addPreserved<SplitAfterCall>();
   }
 
   BlockToBlockSetMap* RemoveCFGAliasing::getAliasingBlocks(BasicBlock *BB) {
