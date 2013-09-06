@@ -5,7 +5,6 @@
 #include "AssignBlockSignatures.h"
 #include "GatewayFunctions.h"
 #include "RemoveCFGAliasing.h"
-#include "SplitAfterCall.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/IR/Constants.h"
@@ -33,7 +32,6 @@ namespace cfcss {
 
   void InstrumentBasicBlocks::getAnalysisUsage(AnalysisUsage &AU) const {
     AU.addRequiredTransitive<GatewayFunctions>();
-    AU.addRequiredTransitive<SplitAfterCall>();
     AU.addRequiredTransitive<RemoveCFGAliasing>();
     AU.addRequiredTransitive<AssignBlockSignatures>();
     AU.addRequiredTransitive<InstructionIndex>();
@@ -42,7 +40,6 @@ namespace cfcss {
     AU.addPreserved<AssignBlockSignatures>();
     AU.addPreserved<GatewayFunctions>();
     AU.addPreserved<RemoveCFGAliasing>();
-    AU.addPreserved<SplitAfterCall>();
     AU.addPreserved<InstructionIndex>();
   }
 
@@ -50,7 +47,6 @@ namespace cfcss {
   bool InstrumentBasicBlocks::runOnModule(Module &M) {
     GF = &getAnalysis<GatewayFunctions>();
     II = &getAnalysis<InstructionIndex>();
-    SAC = &getAnalysis<SplitAfterCall>();
     RemoveCFGAliasing *RCA = &getAnalysis<RemoveCFGAliasing>();
     ABS = &getAnalysis<AssignBlockSignatures>();
 
@@ -166,49 +162,18 @@ namespace cfcss {
 
         builder.SetInsertPoint(bi->getFirstNonPHI());
 
-        BasicBlock *remainder = NULL;
+        BasicBlock *authoritativePredecessor = ABS->getAuthoritativePredecessor(bi);
+        assert(authoritativePredecessor);
 
-        if (SAC->wasSplitAfterCall(bi)) {
-          // Check for a valid control flow transfer from one of the return
-          // blocks of the function that was called from the basic block
-          // preceding the current one.
-          builder.CreateStore(builder.CreateLoad(interFunctionGSR, "GSR"), GSR);
-          builder.CreateStore(builder.CreateLoad(interFunctionD, "D"), D);
-
-          Function *calledFunction = SAC->getCalledFunctionForReturnBlock(bi);
-
-          ReturnInst *primaryReturn = II->getPrimaryReturn(calledFunction);
-          BasicBlock *authoritativeReturnBlock = primaryReturn->getParent();
-          assert(authoritativeReturnBlock);
-          ReturnList *returns = II->getReturns(calledFunction);
-          assert(returns);
-
-          remainder = insertSignatureUpdate(
-              bi,
-              errorHandlingBlock,
-              GSR,
-              D,
-              ABS->getSignature(bi),
-              ABS->getSignature(authoritativeReturnBlock),
-              (returns->size() > 1), /* adjustForFanin */
-              &builder);
-
-        } else {
-          // Check for a valid control flow transfer from one of the
-          // predecessors of the current basic block.
-          BasicBlock *authoritativePredecessor = ABS->getAuthoritativePredecessor(bi);
-          assert(authoritativePredecessor);
-
-          remainder = insertSignatureUpdate(
-              bi,
-              errorHandlingBlock,
-              GSR,
-              D,
-              ABS->getSignature(bi),
-              ABS->getSignature(authoritativePredecessor),
-              ABS->isFaninNode(bi), /* adjustForFanin */
-              &builder);
-        }
+        BasicBlock *remainder = insertSignatureUpdate(
+            bi,
+            errorHandlingBlock,
+            GSR,
+            D,
+            ABS->getSignature(bi),
+            ABS->getSignature(authoritativePredecessor),
+            ABS->isFaninNode(bi), /* adjustForFanin */
+            &builder);
 
         builder.SetInsertPoint(remainder->getTerminator());
 
@@ -223,6 +188,7 @@ namespace cfcss {
       for (CallList::iterator ci = calls->begin(), ce = calls->end(); ci != ce; ++ci) {
         CallInst *callInst = *ci;
         Function *callee = callInst->getCalledFunction();
+        BasicBlock *callingBlock = callInst->getParent();
 
         builder.SetInsertPoint(callInst);
         builder.CreateStore(builder.CreateLoad(GSR, "GSR"), interFunctionGSR);
@@ -233,13 +199,35 @@ namespace cfcss {
           Function *authoritativePredecessor = GF->getAuthoritativePredecessor(callee);
           CallInst *primaryCall = II->getPrimaryCallTo(callee, authoritativePredecessor);
 
-          Signature *sigA = ABS->getSignature(callInst->getParent());
+          Signature *sigA = ABS->getSignature(callingBlock);
           Signature *sigB = ABS->getSignature(primaryCall->getParent());
           Signature *signatureAdjustment = Signature::get(getGlobalContext(),
               APIntOps::Xor(sigA->getValue(), sigB->getValue()));
 
           builder.CreateStore(signatureAdjustment, interFunctionD);
         }
+
+        // Insert a signature check after the call instruction.
+        builder.SetInsertPoint(++(builder.GetInsertPoint()));
+
+        builder.CreateStore(builder.CreateLoad(interFunctionGSR, "GSR"), GSR);
+        builder.CreateStore(builder.CreateLoad(interFunctionD, "D"), D);
+
+        ReturnInst *primaryReturn = II->getPrimaryReturn(callee);
+        BasicBlock *authoritativeReturnBlock = primaryReturn->getParent();
+        assert(authoritativeReturnBlock);
+        ReturnList *returns = II->getReturns(callee);
+        assert(returns);
+
+        insertSignatureUpdate(
+            callingBlock,
+            errorHandlingBlock,
+            GSR,
+            D,
+            ABS->getSignature(callingBlock),
+            ABS->getSignature(authoritativeReturnBlock),
+            (returns->size() > 1),
+            &builder);
       }
 
       DEBUG(errs() << debugPrefix << "Instrumenting return blocks.\n");
