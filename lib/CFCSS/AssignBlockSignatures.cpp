@@ -1,9 +1,3 @@
-/**
- * @author Hermann Loose <hermannloose@gmail.com>
- *
- * TODO(hermannloose): Add description.
- */
-
 #define DEBUG_TYPE "cfcss-assign-block-signatures"
 
 #include "AssignBlockSignatures.h"
@@ -19,6 +13,8 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <random>
+
+using namespace llvm;
 
 static const char *debugPrefix = "AssignBlockSignatures: ";
 
@@ -54,15 +50,13 @@ namespace cfcss {
         continue;
       }
 
-      DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "].\n");
+      DEBUG(errs() << debugPrefix << "Running on [" << fi->getName() << "] ... ");
 
       for (Function::iterator bi = fi->begin(), be = fi->end(); bi != be; ++bi) {
         uint64_t nextID = prng();
 
         blockSignatures.insert(BlockToSignatureEntry(bi, Signature::get(intType, nextID)));
         bi->setName(Twine("0x") + Twine::utohexstr(nextID) + Twine(": ") + bi->getName());
-
-        DEBUG(errs() << debugPrefix << "[" << bi->getName() << "]\n");
 
         for (succ_iterator si = succ_begin(bi), se = succ_end(bi); si != se; ++si) {
           BasicBlock *succ = *si;
@@ -82,7 +76,11 @@ namespace cfcss {
         }
       }
 
-      DEBUG(errs() << debugPrefix << "Finished on [" << fi->getName() << "].\n");
+      DEBUG(
+        errs().changeColor(raw_ostream::GREEN);
+        errs() << "done\n";
+        errs().resetColor();
+      );
     }
 
     return false;

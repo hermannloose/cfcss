@@ -1,8 +1,3 @@
-/**
- * @author Hermann Loose <hermannloose@gmail.com>
- *
- * TODO(hermannloose): Add description.
- */
 #pragma once
 
 #include "llvm/ADT/DenseMap.h"
@@ -20,10 +15,12 @@ namespace cfcss {
   typedef llvm::SmallPtrSet<llvm::Function*, 64> FunctionSet;
 
   typedef llvm::DenseMap<llvm::BasicBlock*, llvm::BasicBlock*> BlockToBlockMap;
+  typedef llvm::DenseMap<llvm::BasicBlock*, BlockSet*> BlockToBlockSetMap;
   typedef llvm::DenseMap<llvm::BasicBlock*, llvm::Function*> BlockToFunctionMap;
   typedef llvm::DenseMap<llvm::BasicBlock*, Signature*> BlockToSignatureMap;
 
   typedef std::pair<llvm::BasicBlock*, llvm::BasicBlock*> BlockToBlockEntry;
+  typedef std::pair<llvm::BasicBlock*, BlockSet*> BlockToBlockSetEntry;
   typedef std::pair<llvm::BasicBlock*, llvm::Function*> BlockToFunctionEntry;
   typedef std::pair<llvm::BasicBlock*, Signature*> BlockToSignatureEntry;
 
