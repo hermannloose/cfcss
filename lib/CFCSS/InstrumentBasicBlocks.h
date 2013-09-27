@@ -4,6 +4,7 @@
 #include "AssignBlockSignatures.h"
 #include "GatewayFunctions.h"
 #include "InstructionIndex.h"
+#include "SplitAfterCall.h"
 
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/IR/Instructions.h"
@@ -16,8 +17,8 @@ namespace cfcss {
   /**
    * Instrument all basic blocks in a module with signature checks.
    *
-   * This builds upon the preprocessing and analysis performed in GatewayFunctions,
-   * InstructionIndex etc.  which are scheduled in getAnalysisUsage().
+   * This builds upon the preprocessing and analysis performed in ReturnBlocks, SplitAfterCall etc.
+   * which are scheduled in getAnalysisUsage().
    */
   class InstrumentBasicBlocks : public llvm::ModulePass {
 
@@ -33,6 +34,7 @@ namespace cfcss {
       AssignBlockSignatures *ABS;
       GatewayFunctions *GF;
       InstructionIndex *II;
+      SplitAfterCall *SAC;
 
       BlockSet ignoreBlocks;
 
