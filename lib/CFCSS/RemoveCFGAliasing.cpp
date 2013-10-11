@@ -138,16 +138,30 @@ namespace cfcss {
         source->getParent());
 
     BranchInst::Create(target, proxyBlock);
+
     // We can't use replaceSuccessorsPhiUsesWith(), as we only want to change
     // target and not all successors at once.
-    for (BasicBlock::iterator i = target->begin(), e = target->end(); i != e; ++i) {
-      if (PHINode *phiNode = dyn_cast<PHINode>(i)) {
-        for (unsigned int idx = 0; idx < phiNode->getNumIncomingValues(); ++idx) {
-          if (phiNode->getIncomingBlock(idx) == source) {
-            phiNode->setIncomingBlock(idx, proxyBlock);
-          }
+    PHINode *phiNode = NULL;
+    for (BasicBlock::iterator ii = target->begin(); (phiNode = dyn_cast<PHINode>(ii)); ++ii) {
+      // In the presence of switch statements, multiple edges may exist between a source and
+      // a target, with a corresponding number of operands in the phi node referring to the same
+      // basic block. Since these edges are replaced by a single one from the proxy block to the
+      // target block, only one operand referring to the proxy block may remain in the phi node.
+
+      Value *value = phiNode->getIncomingValue(phiNode->getBasicBlockIndex(source));
+
+      // Unfortunately BasicBlock::removePredecessor() does not work as advertised and only removes
+      // the first matching operand each time it is called, so we have to do this by hand.
+      while (true) {
+        int idx = phiNode->getBasicBlockIndex(source);
+        if (idx >= 0) {
+          phiNode->removeIncomingValue(idx, false);
+        } else {
+          break;
         }
       }
+
+      phiNode->addIncoming(value, proxyBlock);
     }
 
     TerminatorInst *terminator = source->getTerminator();
