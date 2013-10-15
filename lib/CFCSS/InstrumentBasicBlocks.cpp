@@ -54,7 +54,12 @@ namespace cfcss {
     RemoveCFGAliasing *RCA = &getAnalysis<RemoveCFGAliasing>();
     ABS = &getAnalysis<AssignBlockSignatures>();
 
-    IntegerType *intType = Type::getInt64Ty(getGlobalContext());
+    IntegerType *intType = NULL;
+    if (Signatures32) {
+      intType = Type::getInt32Ty(getGlobalContext());
+    } else {
+      intType = Type::getInt64Ty(getGlobalContext());
+    }
 
     interFunctionGSR = new GlobalVariable(
         M,

@@ -18,6 +18,9 @@ static const char *debugPrefix = "AssignBlockSignatures: ";
 
 namespace cfcss {
 
+  llvm::cl::opt<bool> Signatures32("cfcss-signatures-32bit",
+      llvm::cl::desc("Use 32-bit signatures for CFCSS."));
+
   AssignBlockSignatures::AssignBlockSignatures() : ModulePass(ID),
       blockSignatures(),
       primaryPredecessors(),
@@ -34,7 +37,12 @@ namespace cfcss {
 
 
   bool AssignBlockSignatures::runOnModule(Module &M) {
-    IntegerType *intType = Type::getInt64Ty(getGlobalContext());
+    IntegerType *intType = NULL;
+    if (Signatures32.getValue()) {
+      intType = Type::getInt32Ty(getGlobalContext());
+    } else {
+      intType = Type::getInt64Ty(getGlobalContext());
+    }
 
     for (Module::iterator fi = M.begin(), fe = M.end(); fi != fe; ++fi) {
       if (fi->isDeclaration()) {
