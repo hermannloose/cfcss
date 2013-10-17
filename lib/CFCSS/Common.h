@@ -5,6 +5,7 @@
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Function.h"
+#include "llvm/Support/CommandLine.h"
 
 namespace cfcss {
 
@@ -28,4 +29,6 @@ namespace cfcss {
   typedef llvm::DenseMap<llvm::Function*, llvm::Function*> FunctionToFunctionMap;
 
   typedef std::pair<llvm::Function*, llvm::Function*> FunctionToFunctionEntry;
+
+  extern llvm::cl::opt<bool> Signatures32;
 }
