@@ -19,7 +19,7 @@ static const char *debugPrefix = "AssignBlockSignatures: ";
 namespace cfcss {
 
   llvm::cl::opt<bool> Signatures32("cfcss-signatures-32bit",
-      llvm::cl::desc("Use 32-bit signatures for CFCSS."));
+      llvm::cl::desc("Use 32-bit signatures for CFCSS. The default is to use 64-bit signatures."));
 
   AssignBlockSignatures::AssignBlockSignatures() : ModulePass(ID),
       blockSignatures(),
