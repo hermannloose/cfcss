@@ -79,31 +79,66 @@ namespace cfcss {
         DEBUG(errs() << debugPrefix
             << "Creating gateway function for [" << F->getName() << "].\n");
 
-        StringRef functionName = F->getName();
+        Function *internal = cast<Function>(M.getOrInsertFunction(
+            (F->getName() + "_cfcss_internal").str(),
+            F->getFunctionType(),
+            F->getAttributes()));
 
-        F->setName(functionName + "_cfcss_internal");
-        F->setLinkage(GlobalValue::InternalLinkage);
+        ValueToValueMapTy VMap;
+        SmallVector<ReturnInst*, 64> returns;
 
-        externalCallers->removeAnyCallEdgeTo(externallyCalled);
+        // Map function arguments by hand, since the Cloning API is a bit retarded.
+        for (auto ai = F->arg_begin(), ae = F->arg_end(),
+            nai = internal->arg_begin(), nae = internal->arg_end();
+            ai != ae && nai != nae;
+            ++ai, ++nai) {
 
-        Function *gateway = dyn_cast<Function>(
-            M.getOrInsertFunction(functionName, F->getFunctionType(), F->getAttributes()));
+          VMap[ai] = nai;
+        }
 
-        assert(gateway);
+        CloneFunctionInto(internal, F, VMap, false, returns);
 
-        CallGraphNode *gatewayNode = CG.getOrInsertFunction(gateway);
+        internal->setLinkage(GlobalValue::InternalLinkage);
+
+        CallGraphNode *internalNode = CG.getOrInsertFunction(internal);
+        externalCallers->removeAnyCallEdgeTo(internalNode);
+
+        // TODO(hermannloose): Maybe CallGraphNode::stealCalledFunctionsFrom can be used for this?
+        // Recreate call graph edges for cloned call and invoke instructions.
+        for (auto bi = internal->begin(), be = internal->end(); bi != be; ++bi) {
+          for (auto ii = bi->begin(), ie = bi->end(); ii != ie; ++ii) {
+            if (CallInst *callInst = dyn_cast<CallInst>(ii)) {
+              if (Function *calledFunction = callInst->getCalledFunction()) {
+                // Adding call graph edges for intrinsics would trip an assertion in CallGraph.h.
+                if (!calledFunction->isIntrinsic()) {
+                  internalNode->addCalledFunction(CallSite(callInst), CG[calledFunction]);
+                }
+              }
+            }
+            if (InvokeInst *invokeInst = dyn_cast<InvokeInst>(ii)) {
+              if (Function *calledFunction = invokeInst->getCalledFunction()) {
+                // See comment above.
+                if (!calledFunction->isIntrinsic()) {
+                  internalNode->addCalledFunction(CallSite(invokeInst), CG[calledFunction]);
+                }
+              }
+            }
+          }
+        }
+
+        F->deleteBody();
 
         // TODO(hermannloose): Figure out how to do this in one line.
         std::vector<Value*> argumentVector;
-        for (Function::arg_iterator ai = gateway->arg_begin(), ae = gateway->arg_end();
+        for (Function::arg_iterator ai = F->arg_begin(), ae = F->arg_end();
             ai != ae; ++ai) {
           argumentVector.push_back(ai);
         }
 
-        BasicBlock *entry = BasicBlock::Create(getGlobalContext(), "entry", gateway);
+        BasicBlock *entry = BasicBlock::Create(getGlobalContext(), "entry", F);
         IRBuilder<> builder(entry);
 
-        CallInst *forwardCall = builder.CreateCall(F, ArrayRef<Value*>(argumentVector));
+        CallInst *forwardCall = builder.CreateCall(internal, ArrayRef<Value*>(argumentVector));
 
         ReturnInst *forwardReturn = NULL;
         if (F->getReturnType()->isVoidTy()) {
@@ -112,15 +147,38 @@ namespace cfcss {
           forwardReturn = builder.CreateRet(forwardCall);
         }
 
-        DEBUG(entry->dump());
+        externallyCalled->removeAllCalledFunctions();
+        externallyCalled->addCalledFunction(CallSite(forwardCall), internalNode);
 
-        gatewayNode->addCalledFunction(CallSite(forwardCall), externallyCalled);
-
-        gatewayToInternal.insert(FunctionToFunctionEntry(gateway, F));
+        gatewayToInternal.insert(FunctionToFunctionEntry(F, internal));
 
         modified = true;
       } else {
         assert(false && "The external calling node should only call actual functions.");
+      }
+    }
+
+    // TODO(hermannloose): This is a quick and dirty hack in the wrong place.
+    // Update all direct calls to the original function within the module to refer to the internal
+    // function instead. Function pointers, bitcasts of functions etc. still go through the gateway
+    // as we still lack proper support for them.
+    for (auto fi = M.begin(), fe = M.end(); fi != fe; ++fi) {
+      CallGraphNode *callerNode = CG[fi];
+      for (auto bi = fi->begin(), be = fi->end(); bi != be; ++bi) {
+        for (auto ii = bi->begin(), ie = bi->end(); ii != ie; ++ii) {
+          if (CallInst *callInst = dyn_cast<CallInst>(ii)) {
+            if (Function *calledFunction = callInst->getCalledFunction()) {
+              if (gatewayToInternal.count(calledFunction)) {
+                callerNode->removeCallEdgeFor(CallSite(callInst));
+
+                Function *internal = gatewayToInternal.lookup(calledFunction);
+                callInst->setCalledFunction(internal);
+
+                callerNode->addCalledFunction(CallSite(callInst), CG[internal]);
+              }
+            }
+          }
+        }
       }
     }
 
