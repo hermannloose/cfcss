@@ -105,6 +105,15 @@ namespace cfcss {
 
       BasicBlock *errorHandlingBlock = createErrorHandlingBlock(fi);
 
+      // All instrumented functions store at least once to the global interFunctionGSR, yet they
+      // might have previously been annotated as read-only or read-none.
+      AttributeSet attributes = fi->getAttributes();
+      attributes = attributes.removeAttribute(
+          getGlobalContext(), AttributeSet::FunctionIndex, Attribute::ReadNone);
+      attributes = attributes.removeAttribute(
+          getGlobalContext(), AttributeSet::FunctionIndex, Attribute::ReadOnly);
+      fi->setAttributes(attributes);
+
       DEBUG(errs() << debugPrefix << "Instrumenting entry block.\n");
 
       // TODO(hermannloose): Maybe delegate to two functions for this.
