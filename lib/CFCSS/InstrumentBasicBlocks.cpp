@@ -69,6 +69,8 @@ namespace cfcss {
         ConstantInt::get(intType, 0),
         "interFunctionGSR");
 
+    interFunctionGSR->setThreadLocal(true);
+
     interFunctionD = new GlobalVariable(
         M,
         intType,
@@ -76,6 +78,8 @@ namespace cfcss {
         GlobalValue::LinkOnceAnyLinkage,
         ConstantInt::get(intType, 0),
         "interFunctionD");
+
+    interFunctionD->setThreadLocal(true);
 
     for (Module::iterator fi = M.begin(), fe = M.end(); fi != fe; ++fi) {
       if (fi->isDeclaration()) {
